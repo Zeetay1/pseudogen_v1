@@ -8,6 +8,15 @@ import logging
 import openai
 from .ai_prompts import TEMPLATES
 from .utils import call_openai_with_retries
+from pydantic import BaseModel, constr, Field
+from typing import Annotated
+
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Force it to load .env from backend folder
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
+
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Pseudogen V1 API")
@@ -29,9 +38,9 @@ if not OPENAI_KEY:
 openai.api_key = OPENAI_KEY
 
 class GenerateRequest(BaseModel):
-    problem_description: constr(min_length=1, max_length=4000)
-    style: constr(regex="^(Academic|Developer-Friendly|English-Like|Step-by-Step)$")
-    detail: constr(regex="^(Concise|Detailed)$")
+    problem_description: Annotated[str, Field(min_length=1, max_length=4000)]
+    style: Annotated[str, Field(pattern="^(Academic|Developer-Friendly|English-Like|Step-by-Step)$")]
+    detail: Annotated[str, Field(pattern="^(Concise|Detailed)$")]
 
 @app.post("/generate-pseudocode")
 async def generate(req: GenerateRequest):
@@ -44,7 +53,7 @@ async def generate(req: GenerateRequest):
 
     prompt = template.format(user_input=req.problem_description, detail=req.detail)
     try:
-        response_text = call_openai_with_retries(prompt, model=OPENAI_MODEL)
+        response_text = "test response 1234" #call_openai_with_retries(prompt, model=OPENAI_MODEL)
     except Exception as e:
         logging.exception("OpenAI call failed")
         raise HTTPException(status_code=502, detail=str(e))
