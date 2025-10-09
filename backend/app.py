@@ -7,7 +7,8 @@ import time
 import logging
 import openai
 from .ai_prompts import TEMPLATES
-from .utils import call_openai_with_retries
+#from .utils import call_openai_with_retries
+from .utils import call_llm
 from pydantic import BaseModel, constr, Field
 from typing import Annotated
 
@@ -17,6 +18,8 @@ from dotenv import load_dotenv
 # Force it to load .env from backend folder
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
+print(logging.info(f"PROVIDER={os.getenv('PROVIDER')}"))
+print(logging.info(f"ANTHROPIC_API_KEY={os.getenv('ANTHROPIC_API_KEY')[:8]}..."))  # only first 8 chars for safety
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Pseudogen V1 API")
@@ -31,6 +34,9 @@ app.add_middleware(
 
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # set as env var
+
+CLAUDE_KEY = os.getenv("ANTHROPIC_API_KEY")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229")  # set as env var
 
 if not OPENAI_KEY:
     logging.warning("OPENAI_API_KEY not found. Set OPENAI_API_KEY in environment.")
@@ -53,9 +59,9 @@ async def generate(req: GenerateRequest):
 
     prompt = template.format(user_input=req.problem_description, detail=req.detail)
     try:
-        response_text = "test response 1234" #call_openai_with_retries(prompt, model=OPENAI_MODEL)
+        response_text = call_llm(prompt) #"test response 1234"
     except Exception as e:
-        logging.exception("OpenAI call failed")
+        logging.exception("LLM call failed")
         raise HTTPException(status_code=502, detail=str(e))
 
     return {"markdown": response_text}
