@@ -5,6 +5,9 @@ import openai
 import requests
 from anthropic import Anthropic
 from requests.exceptions import RequestException
+from dotenv import load_dotenv
+from pathlib import Path
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 # Initialize clients
 openai.api_key = os.getenv("OPENAI_API_KEY")
