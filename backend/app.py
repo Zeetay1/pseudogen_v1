@@ -70,7 +70,7 @@ async def generate(req: GenerateRequest):
         dict: JSON object with Markdown pseudocode output.
 
     Raises:
-        HTTPException: 400 for invalid style, 500 for missing configuration,
+        HTTPException: 422 for invalid style,
                        502 if the LLM call fails.
     """
     
