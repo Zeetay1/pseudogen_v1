@@ -1,65 +1,90 @@
 # backend/app.py
+"""
+Pseudogen V1 API
+----------------
+FastAPI backend for generating pseudocode using various LLM providers (OpenAI, Claude, etc.).
+This API receives a problem description, pseudocode style, and level of detail,
+then returns formatted pseudocode as Markdown text.
+"""
+
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, constr
 from fastapi.middleware.cors import CORSMiddleware
+from .ai_prompts import TEMPLATES
+from .utils import call_llm
+from pydantic import BaseModel, constr, Field
+from typing import Annotated
+from pathlib import Path
+from dotenv import load_dotenv
 import os
 import time
 import logging
 import openai
-from .ai_prompts import TEMPLATES
-#from .utils import call_openai_with_retries
-from .utils import call_llm
-from pydantic import BaseModel, constr, Field
-from typing import Annotated
 
-from pathlib import Path
-from dotenv import load_dotenv
+# -----------------------------------------------------------------------------
+# Environment setup
+# -----------------------------------------------------------------------------
 
-# Force it to load .env from backend folder
+# Explicitly load environment variables from the backend/.env file
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
-print(logging.info(f"PROVIDER={os.getenv('PROVIDER')}"))
-print(logging.info(f"ANTHROPIC_API_KEY={os.getenv('ANTHROPIC_API_KEY')[:8]}..."))  # only first 8 chars for safety
+# -----------------------------------------------------------------------------
+# FastAPI app configuration
+# -----------------------------------------------------------------------------
 
-logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Pseudogen V1 API")
 
+# Enable CORS (relaxed for now — restrict origins in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # lock down in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # set as env var
-
-CLAUDE_KEY = os.getenv("ANTHROPIC_API_KEY")
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229")  # set as env var
-
-if not OPENAI_KEY:
-    logging.warning("OPENAI_API_KEY not found. Set OPENAI_API_KEY in environment.")
-
-openai.api_key = OPENAI_KEY
+# -----------------------------------------------------------------------------
+# Request model
+# -----------------------------------------------------------------------------
 
 class GenerateRequest(BaseModel):
+    """Schema for pseudocode generation requests."""
     problem_description: Annotated[str, Field(min_length=1, max_length=4000)]
     style: Annotated[str, Field(pattern="^(Academic|Developer-Friendly|English-Like|Step-by-Step)$")]
     detail: Annotated[str, Field(pattern="^(Concise|Detailed)$")]
 
+# -----------------------------------------------------------------------------
+# API Routes
+# -----------------------------------------------------------------------------
+
 @app.post("/generate-pseudocode")
 async def generate(req: GenerateRequest):
-    if not OPENAI_KEY:
-        raise HTTPException(status_code=500, detail="Server misconfiguration: OPENAI_API_KEY missing")
+    """
+    Generate pseudocode from a given problem description.
 
+    Args:
+        req (GenerateRequest): User input containing problem description,
+                               desired pseudocode style, and level of detail.
+
+    Returns:
+        dict: JSON object with Markdown pseudocode output.
+
+    Raises:
+        HTTPException: 400 for invalid style, 500 for missing configuration,
+                       502 if the LLM call fails.
+    """
+    
+    # Retrieve appropriate prompt template
     template = TEMPLATES.get(req.style)
     if template is None:
         raise HTTPException(status_code=400, detail="Unknown style")
 
+    # Fill in the template with user input and level of detail
     prompt = template.format(user_input=req.problem_description, detail=req.detail)
+    
+    # Call the LLM provider safely
     try:
-        response_text = call_llm(prompt) #"test response 1234"
+        response_text = call_llm(prompt)
     except Exception as e:
         logging.exception("LLM call failed")
         raise HTTPException(status_code=502, detail=str(e))

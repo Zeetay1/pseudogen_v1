@@ -1,17 +1,40 @@
 # backend/utils.py
+"""
+utils.py
+--------
+Utility module for handling LLM API calls (OpenAI, Claude, Groq) with retry logic.
+
+Each provider has a dedicated call function, wrapped by `call_llm()`,
+which selects the active provider from environment variables.
+"""
+
 import os
 import time
 import openai
 import requests
+import logging
 from anthropic import Anthropic
 from requests.exceptions import RequestException
 from dotenv import load_dotenv
 from pathlib import Path
+
+# --------------------------------------------------------------------------
+# Environment setup
+# --------------------------------------------------------------------------
+
+# Explicitly load environment variables from the backend/.env file
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
-# Initialize clients
+# --------------------------------------------------------------------------
+# Initialize API clients
+# --------------------------------------------------------------------------
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# --------------------------------------------------------------------------
+# OpenAI
+# --------------------------------------------------------------------------
 
 def call_openai_with_retries(prompt, model=None, max_retries=3, backoff=1.0):
     model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -36,6 +59,10 @@ def call_openai_with_retries(prompt, model=None, max_retries=3, backoff=1.0):
             else:
                 raise
 
+# --------------------------------------------------------------------------
+# Claude
+# --------------------------------------------------------------------------
+
 def call_claude_with_retries(prompt, model=None, max_retries=3, backoff=1.0):
     model = model or os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229")
     last_err = None
@@ -58,6 +85,10 @@ def call_claude_with_retries(prompt, model=None, max_retries=3, backoff=1.0):
                 time.sleep(backoff * attempt)
             else:
                 raise
+
+# --------------------------------------------------------------------------
+# Groq
+# --------------------------------------------------------------------------
 
 def call_groq_with_retries(prompt, model=None, max_retries=3, backoff=1.0):
     api_key = os.getenv("GROQ_API_KEY")
@@ -99,6 +130,9 @@ def call_groq_with_retries(prompt, model=None, max_retries=3, backoff=1.0):
             else:
                 raise RuntimeError(f"Groq failed after {max_retries} attempts: {last_err}")
 
+# --------------------------------------------------------------------------
+# Generic handler
+# --------------------------------------------------------------------------
 
 def call_llm(prompt):
     provider = os.getenv("PROVIDER", "openai").lower()
