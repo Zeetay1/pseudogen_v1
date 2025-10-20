@@ -1,5 +1,21 @@
 {
   "scripts": {
     "dev": "vite"
+  },
+  "name": "frontend",
+  "version": "1.0.0",
+  "main": "vite.config.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^7.1.11"
   }
 }
