@@ -41,7 +41,6 @@ export default function InputForm({ onResult }) {
           <select value={style} onChange={e=>setStyle(e.target.value)}>
             <option>Academic</option>
             <option>Developer-Friendly</option>
-            <option>English-Like</option>
             <option>Step-by-Step</option>
           </select>
           <select value={detail} onChange={e=>setDetail(e.target.value)}>
