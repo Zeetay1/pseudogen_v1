@@ -1,3 +1,4 @@
+//frontend/src/components/HistoryPanel.jsx
 import React from "react";
 export default function HistoryPanel({ history = [] }) {
   if (!history.length) return null;
