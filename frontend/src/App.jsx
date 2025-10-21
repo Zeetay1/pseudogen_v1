@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
+import './App.css'
 
 export default function App() {
   const [history, setHistory] = useState(() => {
