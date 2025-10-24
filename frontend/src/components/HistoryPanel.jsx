@@ -31,6 +31,9 @@ export default function HistoryPanel({ history = [], onSelect = () => {} }) {
           >
             <div className="font-medium truncate">{title}</div>
             <div className="text-xs text-gray-500 dark:text-slate-400">
+              {h.style} • {h.detail}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-slate-400">
               {new Date(h.ts).toLocaleString()}
             </div>
           </li>
