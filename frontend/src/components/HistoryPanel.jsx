@@ -1,10 +1,5 @@
 import React from "react";
 
-/**
- * props:
- * - history: array of entries
- * - onSelect(entry): function called when an item is clicked (we'll set output)
- */
 export default function HistoryPanel({ history = [], onSelect = () => {} }) {
   if (!history.length)
     return (
@@ -14,28 +9,33 @@ export default function HistoryPanel({ history = [], onSelect = () => {} }) {
     );
 
   return (
-    <ul className="space-y-3">
-      {history.map((h, i) => (
-        <li
-          key={i}
-          role="button"
-          onClick={() => onSelect(h)}
-          className="p-3 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-600 transition cursor-pointer text-sm"
-          title="Click to view full pseudocode"
-        >
-          <div className="text-xs text-gray-500 dark:text-slate-300 mb-1">
-            {new Date(h.ts).toLocaleString()}
-          </div>
+    <ul className="space-y-2">
+      {history.map((h, i) => {
+        // Create a short "title" version of the problem or markdown
+        const title =
+          h.problem && h.problem.trim().length > 0
+            ? h.problem.slice(0, 50) + (h.problem.length > 50 ? "..." : "")
+            : h.markdown
+            ? h.markdown.slice(0, 50) + (h.markdown.length > 50 ? "..." : "")
+            : "Untitled";
 
-          <div className="font-medium text-gray-800 dark:text-gray-100 mb-1">
-            {h.style} • {h.detail}
-          </div>
-
-          <div className="text-gray-700 dark:text-slate-200 whitespace-pre-wrap text-xs">
-            {h.markdown ? (h.markdown.length > 160 ? h.markdown.slice(0, 160) + "..." : h.markdown) : ""}
-          </div>
-        </li>
-      ))}
+        return (
+          <li
+            key={i}
+            onClick={() => onSelect(h)}
+            role="button"
+            className="p-3 rounded-lg cursor-pointer text-sm
+                       bg-transparent hover:bg-blue-50 dark:hover:bg-slate-700
+                       text-gray-800 dark:text-gray-200 transition"
+            title="Click to view pseudocode"
+          >
+            <div className="font-medium truncate">{title}</div>
+            <div className="text-xs text-gray-500 dark:text-slate-400">
+              {new Date(h.ts).toLocaleString()}
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }

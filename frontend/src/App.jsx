@@ -106,7 +106,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="overflow-y-auto pr-2" style={{ maxHeight: "calc(100vh - 160px)" }}>
+              <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent" style={{ maxHeight: "calc(100vh - 160px)" }}>
                 <HistoryPanel
                   history={history}
                   onSelect={handleSelectHistory}
