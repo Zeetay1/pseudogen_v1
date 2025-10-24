@@ -1,8 +1,20 @@
-import React from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 
 export default function OutputPanel({ markdown }) {
+  const [copied, setCopied] = useState(false);
+
   if (!markdown) return null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // show "Copied!" for 2 seconds
+    } catch (err) {
+      console.error("Failed to copy text:", err);
+    }
+  };
 
   return (
     <div className="mt-6 border border-gray-200 dark:border-slate-700 rounded-2xl p-5 bg-white dark:bg-slate-800">
@@ -12,10 +24,16 @@ export default function OutputPanel({ markdown }) {
         </h2>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigator.clipboard.writeText(markdown)}
-            className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+            onClick={handleCopy}
+            className="relative text-blue-600 dark:text-blue-400 hover:underline text-sm transition"
           >
-            Copy
+            {copied ? (
+              <span className="text-green-600 dark:text-green-400 font-medium">
+                Copied!
+              </span>
+            ) : (
+              "Copy"
+            )}
           </button>
         </div>
       </div>
