@@ -34,19 +34,15 @@ export default function App() {
     localStorage.setItem("pseudogen_theme", theme);
   }, [theme]);
 
-  // Add or remove the 'dark' class from the top-level container via state (Tailwind picks it up)
   const rootClass = theme === "dark" ? "dark" : "";
 
   const saveToHistory = (entry) => {
     const next = [entry, ...history].slice(0, 50);
     setHistory(next);
-    // localStorage is synced via useEffect
   };
 
-  // when a history item is clicked
   const handleSelectHistory = (entry) => {
     setOutput(entry.markdown);
-    // optional: bring main area into view
     const mainEl = document.getElementById("main-workspace");
     if (mainEl) mainEl.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -61,9 +57,16 @@ export default function App() {
   return (
     <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
       <div className="flex flex-col min-h-screen">
-        <header className="bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm py-4 px-6 flex items-center justify-between border-b border-gray-200">
+        <header
+          className="fixed top-0 left-0 right-0 z-30 
+                    bg-white dark:bg-slate-800 dark:border-slate-700 
+                    shadow-sm py-4 px-6 flex items-center justify-between 
+                    border-b border-gray-200"
+        >
           <div>
-            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Pseudogen Demo</h1>
+            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              Pseudogen Demo
+            </h1>
             <div className="text-xs text-gray-500 dark:text-slate-300">v1</div>
           </div>
 
@@ -88,8 +91,9 @@ export default function App() {
           </div>
         </header>
 
+        {/* ✅ Fixed main padding */}
         <main
-          className={`flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900 transition-all duration-300
+          className={`flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900 transition-all duration-300 pt-[72px]
               ${isHistoryOpen ? "pl-72" : "pl-0"}`}
         >
           {/* Sidebar */}
