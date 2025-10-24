@@ -59,11 +59,11 @@ export default function App() {
   };
 
   return (
-    <div className={`${rootClass} min-h-screen bg-gray-50 dark:bg-slate-900 dark:text-gray-100`}>
+    <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
       <div className="flex flex-col min-h-screen">
         <header className="bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm py-4 px-6 flex items-center justify-between border-b border-gray-200">
           <div>
-            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Pseudogen V1</h1>
+            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Pseudogen Demo</h1>
             <div className="text-xs text-gray-500 dark:text-slate-300">FastAPI powered</div>
           </div>
 
@@ -88,14 +88,13 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex flex-1 overflow-hidden">
+        <main className="flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900">
           {/* Sidebar */}
           <aside
             className={`bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 p-4 transition-all
                         ${isHistoryOpen ? "w-72" : "w-0"} overflow-hidden`}
             aria-hidden={!isHistoryOpen}
           >
-            {/* keep scroll confined to this panel */}
             <div className="h-full flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-100">History</h2>
@@ -117,8 +116,11 @@ export default function App() {
           </aside>
 
           {/* Workspace */}
-          <section id="main-workspace" className="flex-1 p-6 overflow-auto">
-            <div className="max-w-4xl mx-auto">
+          <section
+            id="main-workspace"
+            className="flex-1 p-6 overflow-auto bg-gray-100 dark:bg-slate-950 transition-colors"
+          >
+            <div className="max-w-4xl mx-auto bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
               <InputForm
                 onResult={(entry) => {
                   saveToHistory(entry);
