@@ -64,7 +64,7 @@ export default function App() {
         <header className="bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm py-4 px-6 flex items-center justify-between border-b border-gray-200">
           <div>
             <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Pseudogen Demo</h1>
-            <div className="text-xs text-gray-500 dark:text-slate-300">FastAPI powered</div>
+            <div className="text-xs text-gray-500 dark:text-slate-300">v1</div>
           </div>
 
           <div className="flex items-center gap-3">
