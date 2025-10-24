@@ -1,13 +1,16 @@
 import React, { useState } from "react";
 import OutputPanel from "./OutputPanel";
 
+// Handles user input and sends requests to the backend API
 export default function InputForm({ onResult }) {
+  // Input fields and UI states
   const [problem, setProblem] = useState("");
-  const [style, setStyle] = useState("Developer-Friendly");
+  const [style, setStyle] = useState("Step-by-Step");
   const [detail, setDetail] = useState("Concise");
   const [output, setOutput] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Handles form submission and calls backend
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
@@ -17,10 +20,14 @@ export default function InputForm({ onResult }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ problem_description: problem, style, detail }),
       });
+      
+      // Handle non-successful responses
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || "Server error");
       }
+      
+      // Extract result and update output
       const data = await res.json();
       setOutput(data.markdown);
       onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now() });
@@ -38,6 +45,7 @@ export default function InputForm({ onResult }) {
           Describe Your Problem
         </h2>
 
+        {/* Problem input field */}
         <textarea
           required
           value={problem}
@@ -46,6 +54,7 @@ export default function InputForm({ onResult }) {
           className="w-full h-40 p-3 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
         />
 
+        {/* Style and detail selection controls */}
         <div className="flex flex-col sm:flex-row gap-3">
           <select
             value={style}

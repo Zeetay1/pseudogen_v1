@@ -1,6 +1,8 @@
 import React from "react";
 
+// Displays list of past pseudocode generations
 export default function HistoryPanel({ history = [], onSelect = () => {} }) {
+  // Show message when history is empty
   if (!history.length)
     return (
       <div className="text-sm text-gray-500 italic text-center mt-8 dark:text-slate-400">
@@ -11,7 +13,7 @@ export default function HistoryPanel({ history = [], onSelect = () => {} }) {
   return (
     <ul className="space-y-2">
       {history.map((h, i) => {
-        // Create a short "title" version of the problem or markdown
+        {/* Create a short "title" version of the problem or markdown */}
         const title =
           h.problem && h.problem.trim().length > 0
             ? h.problem.slice(0, 50) + (h.problem.length > 50 ? "..." : "")

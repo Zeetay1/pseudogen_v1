@@ -2,12 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* small helpful base override for the body when dark mode class is applied */
+/* Set background color for dark mode */
 .dark body {
   background-color: #0f172a; /* slate-900 */
 }
 
-/* For Chrome, Edge, and Safari */
+/* Custom scrollbar styling for Chrome, Edge, Safari */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -21,7 +21,7 @@
   background-color: rgba(100, 100, 100, 0.8);
 }
 
-/* For Firefox */
+/* Firefox scrollbar styling */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(100, 100, 100, 0.6) transparent;
