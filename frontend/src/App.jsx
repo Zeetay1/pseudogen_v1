@@ -88,11 +88,15 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900">
+        <main
+          className={`flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900 transition-all duration-300
+              ${isHistoryOpen ? "pl-72" : "pl-0"}`}
+        >
           {/* Sidebar */}
           <aside
-            className={`bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 p-4 transition-all
-                        ${isHistoryOpen ? "w-72" : "w-0"} overflow-hidden`}
+            className={`fixed top-[72px] left-0 h-[calc(100vh-72px)] w-72 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 
+                        p-4 transform transition-transform duration-300 ease-in-out z-20
+                        ${isHistoryOpen ? "translate-x-0" : "-translate-x-full"}`}
             aria-hidden={!isHistoryOpen}
           >
             <div className="h-full flex flex-col">
@@ -106,11 +110,11 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent" style={{ maxHeight: "calc(100vh - 160px)" }}>
-                <HistoryPanel
-                  history={history}
-                  onSelect={handleSelectHistory}
-                />
+              <div
+                className="overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent"
+                style={{ maxHeight: "calc(100vh - 160px)" }}
+              >
+                <HistoryPanel history={history} onSelect={handleSelectHistory} />
               </div>
             </div>
           </aside>
