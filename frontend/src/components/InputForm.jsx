@@ -63,6 +63,7 @@ export default function InputForm({ onResult }) {
           >
             <option>Academic</option>
             <option>Developer-Friendly</option>
+            <option>English-Like</option>
             <option>Step-by-Step</option>
           </select>
 
