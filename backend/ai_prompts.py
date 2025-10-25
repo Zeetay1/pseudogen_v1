@@ -1,13 +1,13 @@
 # backend/ai_prompts.py
 TEMPLATES = {
     "Academic": (
-        "You are an academic assistant. Convert the following problem into academic-style pseudocode.\n\n"
+        "You are an assistant that converts programming problem descriptions into pseudocode. Instructions: - Use uppercase keywords: BEGIN, END, IF, ELSE, WHILE, FOR, FUNCTION, RETURN. - Maintain indentation for readability. - Keep it formal and concise. - Follow step-by-step logical flow - Go straight to the point, avoid fluff. Provide pseudocode in Markdown format.\n\n"
         "Problem:\n{user_input}\n\nDetail level: {detail}\n\nOutput: Markdown formatted pseudocode with clear variable definitions."
     ),
     "Developer-Friendly": (
-        "You are a senior software engineer. Produce developer-friendly pseudocode for:\n\n{user_input}\n\nDetail: {detail}\n\nReturn code-style pseudocode in Markdown."
+        "You are an assistant that converts programming problem descriptions into developer-friendly pseudocode. Instructions: - Use clear indentation and keywords like Function, If, Else, While, For, Return. - Mimic coding style for readability, but still pseudocode. - Include comments if necessary. - Follow step-by-step logical flow. - Go straight to the point, avoid fluff. Provide pseudocode in Markdown format. Problem:\n\n{user_input}\n\nDetail: {detail}\n\nReturn code-style pseudocode in Markdown."
     ),
     "Step-by-Step": (
-        "Create a step-by-step plan that a beginner developer could implement. Problem:\n\n{user_input}\n\nDetail: {detail}"
+        "You are an assistant that converts programming problem descriptions into plain step-by-step instructions. Instructions: - Ignore all programming syntax and pseudocode formatting. - Describe each step clearly in plain English. - Include all logical decisions and actions required to solve the problem. - Maintain a clear, ordered sequence so a beginner could follow the steps. - Do not use code symbols or formatting. - Go straight to the point, avoid fluff. Provide the steps in Markdown format, numbered or bulleted. Problem:\n\n{user_input}\n\nDetail: {detail}"
     ),
 }
