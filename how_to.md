@@ -1,4 +1,5 @@
 ### Open terminal
+- use for general commands
 ---
 ### add a new terminal
 - cd backend
