@@ -65,6 +65,13 @@ export default function App() {
     localStorage.removeItem("pseudogen_history");
   };
 
+  // Delete a single history entry
+  const handleDeleteHistory = (index) => {
+    if (!confirm("Delete this entry?")) return;
+    setHistory((prev) => prev.filter((_, i) => i !== index));
+  };
+
+
   return (
     <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
       <div className="flex flex-col min-h-screen">
@@ -135,7 +142,7 @@ export default function App() {
                 className="overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent"
                 style={{ maxHeight: "calc(100vh - 160px)" }}
               >
-                <HistoryPanel history={history} onSelect={handleSelectHistory} />
+                <HistoryPanel history={history} onSelect={handleSelectHistory} onDelete={handleDeleteHistory} />
               </div>
             </div>
           </aside>
