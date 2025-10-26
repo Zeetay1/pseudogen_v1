@@ -10,7 +10,7 @@ COPY frontend/package*.json ./
 RUN npm install
 
 # Copy the rest of the code
-COPY frontend .
+COPY . .
 
 # Expose frontend dev port (change if not using 5173)
 EXPOSE 5173
