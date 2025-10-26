@@ -1,12 +1,16 @@
-import React from "react";
-import { Trash2 } from "lucide-react"; // Import trash icon
+import React, { useState } from "react";
+import { Trash2, MoreVertical, Edit3 } from "lucide-react";
 
 // Displays list of past pseudocode generations
 export default function HistoryPanel({
   history = [],
   onSelect = () => {},
-  onDelete = () => {}, // Added delete handler
+  onDelete = () => {},
+  onRename = () => {},
 }) {
+  // Track which menu is open
+  const [openMenuIndex, setOpenMenuIndex] = useState(null);
+
   // Show message when history is empty
   if (!history.length)
     return (
@@ -29,7 +33,7 @@ export default function HistoryPanel({
         return (
           <li
             key={i}
-            className="p-3 rounded-lg flex justify-between items-start gap-2 cursor-pointer text-sm
+            className="relative p-3 rounded-lg flex justify-between items-start gap-2 cursor-pointer text-sm
                        bg-transparent hover:bg-blue-50 dark:hover:bg-slate-700
                        text-gray-800 dark:text-gray-200 transition group"
           >
@@ -49,17 +53,50 @@ export default function HistoryPanel({
               </div>
             </div>
 
-            {/* Right section — delete button, visible on hover */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent triggering onSelect
-                onDelete(i);
-              }}
-              className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600 transition"
-              title="Delete this entry"
-            >
-              <Trash2 size={14} />
-            </button>
+            {/* Right section — 3-dot menu (appears on hover) */}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent triggering onSelect
+                  setOpenMenuIndex(openMenuIndex === i ? null : i);
+                }}
+                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
+                title="More options"
+              >
+                <MoreVertical size={14} />
+              </button>
+
+              {/* Dropdown menu (Rename / Delete) */}
+              {openMenuIndex === i && (
+                <div
+                  className="absolute right-0 mt-2 w-32 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-md shadow-lg z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => {
+                      const newName = prompt("Enter a new name:", title);
+                      if (newName && newName.trim()) {
+                        onRename(i, newName.trim());
+                        setOpenMenuIndex(null);
+                      }
+                    }}
+                    className="flex items-center w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    <Edit3 size={14} className="mr-2" /> Rename
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onDelete(i);
+                      setOpenMenuIndex(null);
+                    }}
+                    className="flex items-center w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    <Trash2 size={14} className="mr-2" /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </li>
         );
       })}

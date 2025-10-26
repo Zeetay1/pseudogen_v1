@@ -71,6 +71,15 @@ export default function App() {
     setHistory((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Rename a single history entry
+  const handleRenameHistory = (index, newTitle) => {
+    setHistory((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], problem: newTitle };
+      return updated;
+    });
+  };
+
 
   return (
     <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
@@ -142,7 +151,12 @@ export default function App() {
                 className="overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent"
                 style={{ maxHeight: "calc(100vh - 160px)" }}
               >
-                <HistoryPanel history={history} onSelect={handleSelectHistory} onDelete={handleDeleteHistory} />
+                <HistoryPanel
+                  history={history}
+                  onSelect={handleSelectHistory}
+                  onDelete={handleDeleteHistory}
+                  onRename={handleRenameHistory}
+                />
               </div>
             </div>
           </aside>
