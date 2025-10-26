@@ -2,7 +2,7 @@
 """
 Pseudogen V1 API
 ----------------
-FastAPI backend for generating pseudocode using various LLM providers (OpenAI, Claude, etc.).
+FastAPI backend for generating pseudocode using various LLM providers (OpenAI, Claude, Groq, etc.).
 This API receives a problem description, pseudocode style, and level of detail,
 then returns formatted pseudocode as Markdown text.
 """

@@ -1,4 +1,4 @@
-# backend/check_groq_models.py
+# backend/scripts/check_groq_models.py
 """
 Utility script to check available Groq LLM models.
 Requires GROQ_API_KEY in backend/.env.
