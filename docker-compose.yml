@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: pseudogen-backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - pseudogen-net
+
+  frontend:
+    build: ./frontend
+    container_name: pseudogen-frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - pseudogen-net
+
+networks:
+  pseudogen-net:
+    driver: bridge
