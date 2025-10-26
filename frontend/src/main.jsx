@@ -1,3 +1,4 @@
+// frontend/src/main.jsx
 // Entry point for React app
 import React from 'react'
 import ReactDOM from 'react-dom/client'

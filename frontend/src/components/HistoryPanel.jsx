@@ -1,3 +1,4 @@
+// frontend/src/components/HistoryPanel.jsx
 import React, { useState } from "react";
 import { Trash2, MoreVertical, Edit3 } from "lucide-react";
 

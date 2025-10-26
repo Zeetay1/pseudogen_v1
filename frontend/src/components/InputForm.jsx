@@ -1,3 +1,4 @@
+// frontend/src/components/InputForm.jsx
 import React, { useState } from "react";
 import OutputPanel from "./OutputPanel";
 
