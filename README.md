@@ -32,40 +32,6 @@ Whether you're a developer sketching algorithm logic, an educator creating lesso
 
 ---
 
-## Getting Started  
-
-### 1. Clone the repository  
-```bash
-git clone https://github.com/zeetay1/pseudogen.git
-cd pseudogen
-```
-
-### 2. Set up the backend
-
-```bash
-add new terminal
-cd backend
-activate venv
-cd ..
-pip install -r requirements.txt
-uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
-```
-
-> The FastAPI backend runs by default on **[http://127.0.0.1:8000](http://127.0.0.1:8000)**.
-
-### 3. Set up the frontend
-
-```bash
-add new terminal
-if venv loads in new terminal --> run: deactivate
-cd frontend
-npm run dev
-```
-
-> The React app runs by default on **[http://localhost:5173](http://localhost:5173)**.
-
----
-
 ## API Reference
 
 ### **POST** `/generate`
@@ -152,7 +118,6 @@ pseudogen/
 
 ## Future Enhancements
 
-* 🌐 Integration with OpenAI or local LLM APIs
 * 📄 Export pseudocode as `.txt` or `.md`
 * 🧩 Syntax highlighting for structured output
 * 🔗 Multi-session storage and sharing options
