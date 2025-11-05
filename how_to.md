@@ -1,4 +1,6 @@
-### Open terminal
+### temp local run instructions
+---
+### open terminal
 - use for general commands
 ---
 ### add a new terminal
