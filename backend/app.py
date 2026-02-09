@@ -7,19 +7,15 @@ This API receives a problem description, pseudocode style, and level of detail,
 then returns formatted pseudocode as Markdown text.
 """
 
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, constr
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .ai_prompts import TEMPLATES
-from .utils import call_llm
-from pydantic import BaseModel, constr, Field
+from pydantic import BaseModel, Field
 from typing import Annotated
 from pathlib import Path
 from dotenv import load_dotenv
-import os
-import time
 import logging
-import openai
+from ai_prompts import TEMPLATES
+from utils import call_llm
 
 # -----------------------------------------------------------------------------
 # Environment setup

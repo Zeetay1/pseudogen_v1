@@ -25,7 +25,7 @@ export default function InputForm({ onResult }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/generate-pseudocode", {
+      const res = await fetch("/generate-pseudocode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ problem_description: problem, style, detail }),

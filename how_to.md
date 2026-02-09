@@ -5,7 +5,7 @@
 ---
 ### add a new terminal
 - cd backend
-- activate venv: .\.venv\Scripts\Activate.ps1
+- activate venv: .venv\Scripts\activate
 - cd ..
 - uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 ---
