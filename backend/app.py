@@ -53,6 +53,11 @@ class GenerateRequest(BaseModel):
 # API Routes
 # -----------------------------------------------------------------------------
 
+@app.get("/")
+async def root():
+    """Health/root endpoint so the backend URL doesn't return 404 when visited."""
+    return {"service": "Pseudogen API", "docs": "/docs", "generate": "POST /generate-pseudocode"}
+
 @app.post("/generate-pseudocode")
 async def generate(req: GenerateRequest):
     """

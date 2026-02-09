@@ -30,15 +30,14 @@ export default function InputForm({ onResult }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ problem_description: problem, style, detail }),
       });
-      
-      // Handle non-successful responses
+      const text = await res.text();
+      const isJson = text.trim().startsWith("{");
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Server error");
+        const msg = isJson ? (JSON.parse(text).detail || "Server error") : `Server error (${res.status}). Backend may be unreachable.`;
+        throw new Error(msg);
       }
-      
-      // Extract result and update output
-      const data = await res.json();
+      const data = isJson ? JSON.parse(text) : { markdown: text };
+      if (!data.markdown) throw new Error("Invalid response from server.");
       setOutput(data.markdown);
       onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now() });
     } catch (err) {
