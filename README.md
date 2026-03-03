@@ -34,15 +34,16 @@ Whether you're a developer sketching algorithm logic, an educator creating lesso
 
 ## API Reference
 
-### **POST** `/generate`
+### **POST** `/generate-pseudocode` (also **POST** `/v1/generate-pseudocode`)
 
-Generates pseudocode from a given natural language problem.
+Generates pseudocode from a given natural language problem.  
+Free plan: request body limited to 4,000 characters. Send header `X-Plan: premium` for up to 12,000 characters.
 
 #### Request Body
 
 ```json
 {
-  "problem": "Sort a list of numbers in ascending order using bubble sort",
+  "problem_description": "Sort a list of numbers in ascending order using bubble sort",
   "style": "Academic",
   "detail": "Concise"
 }
@@ -125,3 +126,9 @@ pseudogen/
 ---
 
 **Pseudogen** — Turning ideas into clear logic, one step at a time.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.

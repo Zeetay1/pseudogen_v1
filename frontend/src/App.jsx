@@ -3,9 +3,9 @@ import React, { useState, useEffect } from "react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
+import PricingPage from "./components/PricingPage";
 
 export default function App() {
-  // Load history from localStorage on first render
   const [history, setHistory] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("pseudogen_history") || "[]");
@@ -14,18 +14,20 @@ export default function App() {
     }
   });
 
-  // Stores the currently generated pseudocode output
   const [output, setOutput] = useState("");
-  
-  // Controls visibility of the sidebar (history panel)
   const [isHistoryOpen, setIsHistoryOpen] = useState(() => {
-    return localStorage.getItem("pseudogen_history_open") !== "false"; // default true
+    return localStorage.getItem("pseudogen_history_open") !== "false";
   });
 
-  // Stores current theme: "light" or "dark"
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("pseudogen_theme") || "light";
   });
+
+  const [plan, setPlan] = useState(() => {
+    return localStorage.getItem("pseudogen_plan") || "free";
+  });
+
+  const [showPricing, setShowPricing] = useState(false);
 
   // Persist history changes
   useEffect(() => {
@@ -37,13 +39,30 @@ export default function App() {
     localStorage.setItem("pseudogen_history_open", isHistoryOpen ? "true" : "false");
   }, [isHistoryOpen]);
 
-  // Persist selected theme
   useEffect(() => {
     localStorage.setItem("pseudogen_theme", theme);
   }, [theme]);
 
-  // Apply dark mode CSS class to root container
+  useEffect(() => {
+    localStorage.setItem("pseudogen_plan", plan);
+  }, [plan]);
+
   const rootClass = theme === "dark" ? "dark" : "";
+
+  if (showPricing) {
+    return (
+      <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
+        <PricingPage
+          theme={theme}
+          onSelectPlan={(p) => {
+            setPlan(p);
+            setShowPricing(false);
+          }}
+          onBack={() => setShowPricing(false)}
+        />
+      </div>
+    );
+  }
 
   // Save a new pseudocode entry to history (max 50 entries)
   const saveToHistory = (entry) => {
@@ -91,18 +110,26 @@ export default function App() {
                     shadow-sm py-4 px-6 flex items-center justify-between 
                     border-b border-gray-200"
         >
-          {/* Title and Version */}
           <div>
             <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              Pseudogen Demo
+              Pseudogen
             </h1>
             <div className="text-xs text-gray-500 dark:text-slate-300">v1</div>
           </div>
 
-          {/* Header buttons: Theme toggle and history toggle */}
           <div className="flex items-center gap-3">
-            
-            {/* Toggle between light/dark mode */}
+            {plan === "premium" && (
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
+                Premium
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPricing(true)}
+              className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700"
+            >
+              {plan === "premium" ? "Plans" : "Upgrade"}
+            </button>
             <button
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
               className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 flex items-center gap-2"
@@ -169,12 +196,13 @@ export default function App() {
           >
             <div className="max-w-4xl mx-auto bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
               <InputForm
+                plan={plan}
                 onResult={(entry) => {
                   saveToHistory(entry);
                   setOutput(entry.markdown);
                 }}
               />
-              <OutputPanel markdown={output} />
+              <OutputPanel markdown={output} plan={plan} />
             </div>
           </section>
         </main>

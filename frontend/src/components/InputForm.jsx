@@ -2,15 +2,16 @@
 import React, { useState } from "react";
 import OutputPanel from "./OutputPanel";
 
-// Handles user input and sends requests to the backend API
-export default function InputForm({ onResult }) {
+export default function InputForm({ onResult, plan = "free" }) {
+  const maxLen = plan === "premium" ? 12000 : 4000;
   // Input fields and UI states
   const [problem, setProblem] = useState("");
   const [style, setStyle] = useState("Step-by-Step");
   const [detail, setDetail] = useState("Concise");
   const [output, setOutput] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false); // Added for hover tooltip
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [error, setError] = useState(null);
 
   // Map of style descriptions
   const styleDescriptions = {
@@ -20,20 +21,24 @@ export default function InputForm({ onResult }) {
     "Step-by-Step": "Beginner-friendly pseudocode written in natural language, clearly ordered and easy to follow."
   };
 
-  // Handles form submission and calls backend
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
+      const headers = { "Content-Type": "application/json" };
+      if (plan === "premium") headers["X-Plan"] = "premium";
       const res = await fetch("/generate-pseudocode", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ problem_description: problem, style, detail }),
       });
       const text = await res.text();
       const isJson = text.trim().startsWith("{");
       if (!res.ok) {
-        const msg = isJson ? (JSON.parse(text).detail || "Server error") : `Server error (${res.status}). Backend may be unreachable.`;
+        const msg = isJson
+          ? (JSON.parse(text).detail || "Server error")
+          : `Server error (${res.status}). Backend may be unreachable.`;
         throw new Error(msg);
       }
       const data = isJson ? JSON.parse(text) : { markdown: text };
@@ -41,7 +46,7 @@ export default function InputForm({ onResult }) {
       setOutput(data.markdown);
       onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now() });
     } catch (err) {
-      alert("Request failed: " + err.message);
+      setError(err.message || "Request failed. Backend may be unreachable or the request rate limit was exceeded.");
     } finally {
       setLoading(false);
     }
@@ -54,14 +59,28 @@ export default function InputForm({ onResult }) {
           Describe Your Problem
         </h2>
 
+        {error && (
+          <div
+            className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm"
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
+
         {/* Problem input field */}
         <textarea
           required
           value={problem}
           onChange={(e) => setProblem(e.target.value)}
+          maxLength={maxLen}
           placeholder="Describe the problem or algorithm..."
           className="w-full h-40 p-3 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
         />
+        <div className="text-xs text-gray-500 dark:text-slate-400">
+          {problem.length} / {maxLen} characters
+          {plan !== "premium" && maxLen === 4000 && " — Upgrade for up to 12,000"}
+        </div>
 
         {/* Style and detail selection controls */}
         <div className="flex flex-col sm:flex-row gap-3">
