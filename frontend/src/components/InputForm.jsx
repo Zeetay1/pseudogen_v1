@@ -1,14 +1,13 @@
 // frontend/src/components/InputForm.jsx
 import React, { useState } from "react";
-import OutputPanel from "./OutputPanel";
+import { useAuth } from "../context/AuthContext";
 
 export default function InputForm({ onResult, plan = "free" }) {
+  const { token, logout } = useAuth();
   const maxLen = plan === "premium" ? 12000 : 4000;
-  // Input fields and UI states
   const [problem, setProblem] = useState("");
   const [style, setStyle] = useState("Step-by-Step");
   const [detail, setDetail] = useState("Concise");
-  const [output, setOutput] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [error, setError] = useState(null);
@@ -27,7 +26,7 @@ export default function InputForm({ onResult, plan = "free" }) {
     setError(null);
     try {
       const headers = { "Content-Type": "application/json" };
-      if (plan === "premium") headers["X-Plan"] = "premium";
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch("/generate-pseudocode", {
         method: "POST",
         headers,
@@ -36,6 +35,7 @@ export default function InputForm({ onResult, plan = "free" }) {
       const text = await res.text();
       const isJson = text.trim().startsWith("{");
       if (!res.ok) {
+        if (res.status === 401) logout();
         const msg = isJson
           ? (JSON.parse(text).detail || "Server error")
           : `Server error (${res.status}). Backend may be unreachable.`;
@@ -43,7 +43,6 @@ export default function InputForm({ onResult, plan = "free" }) {
       }
       const data = isJson ? JSON.parse(text) : { markdown: text };
       if (!data.markdown) throw new Error("Invalid response from server.");
-      setOutput(data.markdown);
       onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now() });
     } catch (err) {
       setError(err.message || "Request failed. Backend may be unreachable or the request rate limit was exceeded.");

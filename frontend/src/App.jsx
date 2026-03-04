@@ -4,8 +4,12 @@ import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
 import PricingPage from "./components/PricingPage";
+import LoginPage from "./components/LoginPage";
+import RegisterPage from "./components/RegisterPage";
+import { useAuth } from "./context/AuthContext";
 
 export default function App() {
+  const { token, user, loading, login, register, logout } = useAuth();
   const [history, setHistory] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("pseudogen_history") || "[]");
@@ -23,18 +27,16 @@ export default function App() {
     return localStorage.getItem("pseudogen_theme") || "light";
   });
 
-  const [plan, setPlan] = useState(() => {
-    return localStorage.getItem("pseudogen_plan") || "free";
-  });
-
   const [showPricing, setShowPricing] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
-  // Persist history changes
+  const plan = user?.plan || "free";
+  const rootClass = theme === "dark" ? "dark" : "";
+
   useEffect(() => {
     localStorage.setItem("pseudogen_history", JSON.stringify(history));
   }, [history]);
 
-  // Persist sidebar visibility preference
   useEffect(() => {
     localStorage.setItem("pseudogen_history_open", isHistoryOpen ? "true" : "false");
   }, [isHistoryOpen]);
@@ -43,21 +45,40 @@ export default function App() {
     localStorage.setItem("pseudogen_theme", theme);
   }, [theme]);
 
-  useEffect(() => {
-    localStorage.setItem("pseudogen_plan", plan);
-  }, [plan]);
+  if (loading) {
+    return (
+      <div className={`${rootClass} min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900`}>
+        <p className="text-gray-600 dark:text-slate-300">Loading…</p>
+      </div>
+    );
+  }
 
-  const rootClass = theme === "dark" ? "dark" : "";
+  if (!token) {
+    return (
+      <div className={rootClass}>
+        {showRegister ? (
+          <RegisterPage
+            theme={theme}
+            onRegister={register}
+            onSwitchToLogin={() => setShowRegister(false)}
+          />
+        ) : (
+          <LoginPage
+            theme={theme}
+            onLogin={login}
+            onSwitchToRegister={() => setShowRegister(true)}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (showPricing) {
     return (
       <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
         <PricingPage
           theme={theme}
-          onSelectPlan={(p) => {
-            setPlan(p);
-            setShowPricing(false);
-          }}
+          onSelectPlan={() => setShowPricing(false)}
           onBack={() => setShowPricing(false)}
         />
       </div>
@@ -118,6 +139,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500 dark:text-slate-400 truncate max-w-[120px]" title={user?.email}>
+              {user?.email}
+            </span>
             {plan === "premium" && (
               <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
                 Premium
@@ -131,20 +155,27 @@ export default function App() {
               {plan === "premium" ? "Plans" : "Upgrade"}
             </button>
             <button
+              type="button"
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
               className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 flex items-center gap-2"
               title="Toggle light / dark"
             >
               {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
             </button>
-
-            {/* Show or hide history panel */}
             <button
+              type="button"
               onClick={() => setIsHistoryOpen((s) => !s)}
               className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700"
               title={isHistoryOpen ? "Collapse history" : "Open history"}
             >
               {isHistoryOpen ? "Hide History" : "Show History"}
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-sm"
+            >
+              Log out
             </button>
           </div>
         </header>

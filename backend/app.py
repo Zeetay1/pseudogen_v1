@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request, APIRouter
+from fastapi import Depends, FastAPI, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -22,6 +22,9 @@ import logging
 
 from ai_prompts import TEMPLATES
 from utils import call_llm
+from database import init_db
+from auth import get_current_user
+from routers.auth import router as auth_router
 
 # -----------------------------------------------------------------------------
 # Environment setup
@@ -105,35 +108,43 @@ class GenerateRequest(BaseModel):
 # API Routes
 # -----------------------------------------------------------------------------
 
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
+
+app.include_router(auth_router)
+
+
 @app.get("/")
 async def root():
     """Health/root endpoint so the backend URL doesn't return 404 when visited."""
-    return {"service": "Pseudogen API", "docs": "/docs", "generate": "POST /generate-pseudocode", "v1": "POST /v1/generate-pseudocode"}
+    return {"service": "Pseudogen API", "docs": "/docs", "auth": "/auth/login", "generate": "POST /generate-pseudocode", "v1": "POST /v1/generate-pseudocode"}
 
 # v1 API router (versioned endpoint; same behavior as legacy path)
 v1_router = APIRouter(prefix="/v1", tags=["v1"])
 
 @v1_router.post("/generate-pseudocode")
 @limiter.limit("30/minute")
-async def generate_v1(request: Request, req: GenerateRequest):
-    """Same as generate; versioned under /v1."""
-    return await generate_impl(request, req)
+async def generate_v1(request: Request, req: GenerateRequest, user: dict = Depends(get_current_user)):
+    """Same as generate; versioned under /v1. Requires auth."""
+    return await generate_impl(request, req, user)
 
 app.include_router(v1_router)
 
 @app.post("/generate-pseudocode")
 @limiter.limit("30/minute")
-async def generate(request: Request, req: GenerateRequest):
+async def generate(request: Request, req: GenerateRequest, user: dict = Depends(get_current_user)):
     """
-    Generate pseudocode from a given problem description.
-    Free plan: up to 4000 chars. Send X-Plan: premium for up to 12000 chars.
+    Generate pseudocode from a given problem description. Requires Bearer token.
+    Plan (free/premium) is taken from the logged-in user.
     """
-    return await generate_impl(request, req)
+    return await generate_impl(request, req, user)
 
 
-async def generate_impl(request: Request, req: GenerateRequest):
+async def generate_impl(request: Request, req: GenerateRequest, user: dict):
     """Shared implementation for generate and generate_v1."""
-    plan = (request.headers.get("X-Plan") or "free").strip().lower()
+    plan = (user.get("plan") or "free").strip().lower()
     if plan != "premium" and len(req.problem_description) > FREE_MAX_INPUT_LEN:
         raise HTTPException(
             status_code=400,

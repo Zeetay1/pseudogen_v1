@@ -1,14 +1,29 @@
 """
 Unit tests for Pseudogen FastAPI app.
 Tests GenerateRequest validation, style/detail handling, and generate endpoint with mocked LLM.
+Auth is overridden so generate endpoints receive a fake user.
 """
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-# Import app after setting up mocks so we can patch utils.call_llm
 from app import app, GenerateRequest
+from auth import get_current_user
 
+# Override auth so generate endpoints see a fake user (plan from user, not header)
+FAKE_USER_FREE = {"id": 1, "email": "test@test.com", "plan": "free"}
+FAKE_USER_PREMIUM = {"id": 2, "email": "premium@test.com", "plan": "premium"}
+
+
+async def _fake_user_free():
+    return FAKE_USER_FREE
+
+
+async def _fake_user_premium():
+    return FAKE_USER_PREMIUM
+
+
+app.dependency_overrides[get_current_user] = _fake_user_free
 client = TestClient(app)
 
 
@@ -132,17 +147,20 @@ def test_free_plan_rejects_input_over_4000_chars():
 
 
 def test_premium_plan_accepts_input_up_to_12000_chars():
-    """With X-Plan: premium, input up to 12000 chars is accepted."""
-    with patch("app.call_llm") as mock_llm:
-        mock_llm.return_value = "BEGIN\nEND"
-        r = client.post(
-            "/generate-pseudocode",
-            headers={"X-Plan": "premium"},
-            json={
-                "problem_description": "y" * 10000,
-                "style": "Academic",
-                "detail": "Concise",
-            },
-        )
-    assert r.status_code == 200
-    assert r.json().get("markdown") == "BEGIN\nEND"
+    """With user plan premium, input up to 12000 chars is accepted."""
+    app.dependency_overrides[get_current_user] = _fake_user_premium
+    try:
+        with patch("app.call_llm") as mock_llm:
+            mock_llm.return_value = "BEGIN\nEND"
+            r = client.post(
+                "/generate-pseudocode",
+                json={
+                    "problem_description": "y" * 10000,
+                    "style": "Academic",
+                    "detail": "Concise",
+                },
+            )
+        assert r.status_code == 200
+        assert r.json().get("markdown") == "BEGIN\nEND"
+    finally:
+        app.dependency_overrides[get_current_user] = _fake_user_free
