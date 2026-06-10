@@ -1,13 +1,5 @@
-# backend/app.py
-"""
-Pseudogen V1 API
-----------------
-FastAPI backend for generating pseudocode using various LLM providers (OpenAI, Claude, Groq, etc.).
-This API receives a problem description, pseudocode style, and level of detail,
-then returns formatted pseudocode as Markdown text.
-"""
-
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -26,14 +18,9 @@ from database import init_db
 from auth import get_current_user
 from routers.auth import router as auth_router
 
-# -----------------------------------------------------------------------------
-# Environment setup
-# -----------------------------------------------------------------------------
-
 _BACKEND_DIR = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=_BACKEND_DIR / ".env")
 
-# Required env vars for startup (PROVIDER + at least one API key for that provider)
 _REQUIRED_ENV = ["PROVIDER"]
 _PROVIDER_KEYS = {
     "openai": "OPENAI_API_KEY",
@@ -48,36 +35,34 @@ def _check_env() -> None:
         return
     missing = [k for k in _REQUIRED_ENV if not os.getenv(k)]
     if missing:
-        raise RuntimeError(f"Missing required env: {', '.join(missing)}. Set them in .env or environment.")
+        raise RuntimeError(f"Missing required env vars: {', '.join(missing)}")
     provider = (os.getenv("PROVIDER") or "").lower()
     key_var = _PROVIDER_KEYS.get(provider)
     if key_var and not os.getenv(key_var):
-        raise RuntimeError(f"PROVIDER={provider} requires {key_var}. Set it in .env or environment.")
+        raise RuntimeError(f"PROVIDER={provider} requires {key_var} to be set")
 
 
 _check_env()
 
-# -----------------------------------------------------------------------------
-# Logging configuration
-# -----------------------------------------------------------------------------
-_LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=getattr(logging, _LOG_LEVEL, logging.INFO),
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("pseudogen")
 
-# -----------------------------------------------------------------------------
-# FastAPI app configuration
-# -----------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="Pseudogen V1 API")
+app = FastAPI(title="Pseudogen API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS: allow_origins from env in production (e.g. CORS_ORIGINS=https://app.example.com), else "*" for dev
 _cors_origins = os.getenv("CORS_ORIGINS", "*").strip()
 allow_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] if _cors_origins != "*" else ["*"]
 app.add_middleware(
@@ -88,67 +73,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------------------------------------------------------
-# Plan limits (Free vs Premium)
-# -----------------------------------------------------------------------------
 FREE_MAX_INPUT_LEN = 4000
 PREMIUM_MAX_INPUT_LEN = 12000
 
-# -----------------------------------------------------------------------------
-# Request model
-# -----------------------------------------------------------------------------
 
 class GenerateRequest(BaseModel):
-    """Schema for pseudocode generation requests. Max length 12000 for Premium."""
     problem_description: Annotated[str, Field(min_length=1, max_length=PREMIUM_MAX_INPUT_LEN)]
     style: Annotated[str, Field(pattern="^(Academic|Developer-Friendly|English-Like|Step-by-Step)$")]
     detail: Annotated[str, Field(pattern="^(Concise|Detailed)$")]
 
-# -----------------------------------------------------------------------------
-# API Routes
-# -----------------------------------------------------------------------------
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
 
 app.include_router(auth_router)
+
+v1_router = APIRouter(prefix="/v1", tags=["v1"])
 
 
 @app.get("/")
 async def root():
-    """Health/root endpoint so the backend URL doesn't return 404 when visited."""
-    return {"service": "Pseudogen API", "docs": "/docs", "auth": "/auth/login", "generate": "POST /generate-pseudocode", "v1": "POST /v1/generate-pseudocode"}
+    return {"service": "Pseudogen API", "version": "1"}
 
-# v1 API router (versioned endpoint; same behavior as legacy path)
-v1_router = APIRouter(prefix="/v1", tags=["v1"])
 
 @v1_router.post("/generate-pseudocode")
 @limiter.limit("30/minute")
 async def generate_v1(request: Request, req: GenerateRequest, user: dict = Depends(get_current_user)):
-    """Same as generate; versioned under /v1. Requires auth."""
-    return await generate_impl(request, req, user)
+    return await _generate(request, req, user)
+
 
 app.include_router(v1_router)
+
 
 @app.post("/generate-pseudocode")
 @limiter.limit("30/minute")
 async def generate(request: Request, req: GenerateRequest, user: dict = Depends(get_current_user)):
-    """
-    Generate pseudocode from a given problem description. Requires Bearer token.
-    Plan (free/premium) is taken from the logged-in user.
-    """
-    return await generate_impl(request, req, user)
+    return await _generate(request, req, user)
 
 
-async def generate_impl(request: Request, req: GenerateRequest, user: dict):
-    """Shared implementation for generate and generate_v1."""
+async def _generate(request: Request, req: GenerateRequest, user: dict):
     plan = (user.get("plan") or "free").strip().lower()
     if plan != "premium" and len(req.problem_description) > FREE_MAX_INPUT_LEN:
         raise HTTPException(
             status_code=400,
-            detail=f"Input exceeds Free plan limit ({FREE_MAX_INPUT_LEN} characters). Upgrade to Premium for up to {PREMIUM_MAX_INPUT_LEN}.",
+            detail=f"Input exceeds the Free plan limit of {FREE_MAX_INPUT_LEN} characters. Upgrade to Premium for up to {PREMIUM_MAX_INPUT_LEN}.",
         )
 
     template = TEMPLATES.get(req.style)
@@ -159,8 +124,8 @@ async def generate_impl(request: Request, req: GenerateRequest, user: dict):
 
     try:
         response_text = call_llm(prompt)
-    except Exception as e:
+    except Exception:
         logger.exception("LLM call failed")
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=502, detail="Failed to generate pseudocode. Please try again.")
 
     return {"markdown": response_text}

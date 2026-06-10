@@ -1,8 +1,5 @@
 import React from "react";
 
-/**
- * Catches React errors in child tree and shows a fallback UI instead of blanking the app.
- */
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

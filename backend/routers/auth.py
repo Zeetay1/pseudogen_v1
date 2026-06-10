@@ -1,8 +1,7 @@
-# backend/routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
-from database import init_db, get_user_by_email, create_user
+from database import get_user_by_email, create_user
 from auth import hash_password, verify_password, create_access_token, get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -41,7 +40,6 @@ def register(req: RegisterRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-    init_db()
     hashed = hash_password(req.password)
     user = create_user(req.email, hashed)
     token = create_access_token({"sub": str(user["id"])})
@@ -50,7 +48,6 @@ def register(req: RegisterRequest):
 
 @router.post("/login", response_model=TokenResponse)
 def login(req: LoginRequest):
-    init_db()
     user = get_user_by_email(req.email)
     if not user or not verify_password(req.password, user["hashed_password"]):
         raise HTTPException(

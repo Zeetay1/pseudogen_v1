@@ -1,13 +1,3 @@
-# backend/utils.py
-"""
-utils.py
---------
-Utility module for handling LLM API calls (OpenAI, Claude, Groq) with retry logic.
-
-Each provider has a dedicated call function, wrapped by `call_llm()`,
-which selects the active provider from environment variables.
-"""
-
 import os
 import time
 import openai
@@ -18,28 +8,15 @@ from requests.exceptions import RequestException
 from dotenv import load_dotenv
 from pathlib import Path
 
-# --------------------------------------------------------------------------
-# Environment setup
-# --------------------------------------------------------------------------
-
-# Explicitly load environment variables from the backend/.env file
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
-# --------------------------------------------------------------------------
-# Initialize API clients
-# --------------------------------------------------------------------------
-
 openai.api_key = os.getenv("OPENAI_API_KEY")
-claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+_claude = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-# --------------------------------------------------------------------------
-# OpenAI
-# --------------------------------------------------------------------------
+
 def call_openai_with_retries(prompt: str, model: str = None, max_retries: int = 3, backoff: float = 1.0) -> str:
-    """Call OpenAI model with retry logic."""
     model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     last_err = None
-
     for attempt in range(1, max_retries + 1):
         try:
             resp = openai.ChatCompletion.create(
@@ -51,26 +28,20 @@ def call_openai_with_retries(prompt: str, model: str = None, max_retries: int = 
             if resp.choices and resp.choices[0].message.get("content"):
                 return resp.choices[0].message["content"].strip()
             raise RuntimeError("Empty response from OpenAI")
-
         except Exception as e:
             last_err = e
-            logging.warning(f"OpenAI call failed (attempt {attempt}): {e}")
+            logging.warning(f"OpenAI attempt {attempt} failed: {e}")
             if attempt < max_retries:
                 time.sleep(backoff * attempt)
-            else:
-                raise RuntimeError(f"OpenAI failed after {max_retries} attempts: {last_err}")
+    raise RuntimeError(f"OpenAI failed after {max_retries} attempts: {last_err}")
 
-# --------------------------------------------------------------------------
-# Claude
-# --------------------------------------------------------------------------
+
 def call_claude_with_retries(prompt: str, model: str = None, max_retries: int = 3, backoff: float = 1.0) -> str:
-    """Call Anthropic Claude model with retry logic."""
-    model = model or os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229")
+    model = model or os.getenv("CLAUDE_MODEL", "claude-3-5-haiku-20241022")
     last_err = None
-
     for attempt in range(1, max_retries + 1):
         try:
-            resp = claude_client.messages.create(
+            resp = _claude.messages.create(
                 model=model,
                 max_tokens=1000,
                 temperature=0.2,
@@ -81,37 +52,29 @@ def call_claude_with_retries(prompt: str, model: str = None, max_retries: int = 
                 if text:
                     return text
             raise RuntimeError("Empty response from Claude")
-
         except Exception as e:
             last_err = e
-            logging.warning(f"Claude call failed (attempt {attempt}): {e}")
+            logging.warning(f"Claude attempt {attempt} failed: {e}")
             if attempt < max_retries:
                 time.sleep(backoff * attempt)
-            else:
-                raise RuntimeError(f"Claude failed after {max_retries} attempts: {last_err}")
+    raise RuntimeError(f"Claude failed after {max_retries} attempts: {last_err}")
 
-# --------------------------------------------------------------------------
-# Groq
-# --------------------------------------------------------------------------
+
 def call_groq_with_retries(prompt: str, model: str = None, max_retries: int = 3, backoff: float = 1.0) -> str:
-    """Call Groq model with retry logic."""
     api_key = os.getenv("GROQ_API_KEY")
-    model = model or os.getenv("GROQ_MODEL", "llama3-8b-8192")
     if not api_key:
         raise RuntimeError("Missing GROQ_API_KEY")
-
+    model = model or os.getenv("GROQ_MODEL", "llama3-8b-8192")
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
         "max_tokens": 1000,
     }
-
     last_err = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -121,37 +84,28 @@ def call_groq_with_retries(prompt: str, model: str = None, max_retries: int = 3,
                 json=payload,
                 timeout=30,
             )
-
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("choices") and data["choices"][0]["message"].get("content"):
-                    return data["choices"][0]["message"]["content"].strip()
+                content = data.get("choices", [{}])[0].get("message", {}).get("content")
+                if content:
+                    return content.strip()
                 raise RuntimeError("Empty response from Groq")
-
             logging.error(f"Groq API error ({resp.status_code}): {resp.text}")
             resp.raise_for_status()
-
         except (RequestException, Exception) as e:
             last_err = e
-            logging.warning(f"Groq call failed (attempt {attempt}): {e}")
+            logging.warning(f"Groq attempt {attempt} failed: {e}")
             if attempt < max_retries:
                 time.sleep(backoff * attempt)
-            else:
-                raise RuntimeError(f"Groq failed after {max_retries} attempts: {last_err}")
+    raise RuntimeError(f"Groq failed after {max_retries} attempts: {last_err}")
 
-# --------------------------------------------------------------------------
-# Generic handler
-# --------------------------------------------------------------------------
 
 def call_llm(prompt: str) -> str:
-    """Route LLM calls based on PROVIDER environment variable."""
     provider = os.getenv("PROVIDER", "openai").lower()
-
-    if provider == "claude":
+    if provider == "claude" or provider == "anthropic":
         return call_claude_with_retries(prompt)
     elif provider == "openai":
         return call_openai_with_retries(prompt)
     elif provider == "groq":
         return call_groq_with_retries(prompt)
-    else:
-        raise RuntimeError(f"Unsupported PROVIDER: {provider}")
+    raise RuntimeError(f"Unsupported PROVIDER: {provider}")

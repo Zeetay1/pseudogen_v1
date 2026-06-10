@@ -54,7 +54,7 @@ export default function RegisterPage({ onSwitchToLogin, onRegister, theme }) {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border ${isDark ? "bg-slate-900 border-slate-600 text-gray-100" : "bg-white border-gray-300 text-gray-800"}`}
+              className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-slate-900 border-slate-600 text-gray-100" : "bg-white border-gray-300 text-gray-800"}`}
               placeholder="you@example.com"
             />
           </div>
@@ -69,7 +69,7 @@ export default function RegisterPage({ onSwitchToLogin, onRegister, theme }) {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border ${isDark ? "bg-slate-900 border-slate-600 text-gray-100" : "bg-white border-gray-300 text-gray-800"}`}
+              className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-slate-900 border-slate-600 text-gray-100" : "bg-white border-gray-300 text-gray-800"}`}
               placeholder="At least 8 characters"
             />
           </div>
@@ -84,7 +84,7 @@ export default function RegisterPage({ onSwitchToLogin, onRegister, theme }) {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border ${isDark ? "bg-slate-900 border-slate-600 text-gray-100" : "bg-white border-gray-300 text-gray-800"}`}
+              className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-slate-900 border-slate-600 text-gray-100" : "bg-white border-gray-300 text-gray-800"}`}
               placeholder="••••••••"
             />
           </div>

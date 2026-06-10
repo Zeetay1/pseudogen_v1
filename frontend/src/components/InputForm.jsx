@@ -1,6 +1,12 @@
-// frontend/src/components/InputForm.jsx
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+
+const STYLE_DESCRIPTIONS = {
+  "Academic": "Formal pseudocode with uppercase keywords (BEGIN, END, IF, WHILE) and concise logical flow.",
+  "Developer-Friendly": "Code-style pseudocode close to real syntax — functions, loops, and conditionals.",
+  "English-Like": "Plain English steps with no programming syntax. Great for non-technical audiences.",
+  "Step-by-Step": "Beginner-friendly pseudocode in natural language, clearly ordered and easy to follow.",
+};
 
 export default function InputForm({ onResult, plan = "free" }) {
   const { token, logout } = useAuth();
@@ -11,14 +17,6 @@ export default function InputForm({ onResult, plan = "free" }) {
   const [loading, setLoading] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [error, setError] = useState(null);
-
-  // Map of style descriptions
-  const styleDescriptions = {
-    "Academic": "Formal and structured pseudocode with uppercase keywords and concise logical flow.",
-    "Developer-Friendly": "Readable, code-style pseudocode that feels close to real programming syntax.",
-    "English-Like": "Plain English step-by-step explanation with no programming syntax.",
-    "Step-by-Step": "Beginner-friendly pseudocode written in natural language, clearly ordered and easy to follow."
-  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -38,14 +36,14 @@ export default function InputForm({ onResult, plan = "free" }) {
         if (res.status === 401) logout();
         const msg = isJson
           ? (JSON.parse(text).detail || "Server error")
-          : `Server error (${res.status}). Backend may be unreachable.`;
+          : `Server error (${res.status}). The backend may be unreachable.`;
         throw new Error(msg);
       }
       const data = isJson ? JSON.parse(text) : { markdown: text };
-      if (!data.markdown) throw new Error("Invalid response from server.");
+      if (!data.markdown) throw new Error("Received an empty response from the server.");
       onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now() });
     } catch (err) {
-      setError(err.message || "Request failed. Backend may be unreachable or the request rate limit was exceeded.");
+      setError(err.message || "Request failed. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -55,7 +53,7 @@ export default function InputForm({ onResult, plan = "free" }) {
     <div className="bg-white dark:bg-slate-800 shadow-sm border border-gray-100 dark:border-slate-700 rounded-xl p-6">
       <form onSubmit={handleSubmit} className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-          Describe Your Problem
+          Describe your problem
         </h2>
 
         {error && (
@@ -67,24 +65,31 @@ export default function InputForm({ onResult, plan = "free" }) {
           </div>
         )}
 
-        {/* Problem input field */}
         <textarea
           required
           value={problem}
           onChange={(e) => setProblem(e.target.value)}
           maxLength={maxLen}
-          placeholder="Describe the problem or algorithm..."
-          className="w-full h-40 p-3 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+          placeholder="e.g. Find the shortest path between two nodes in a weighted graph…"
+          className="w-full h-40 p-3 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 resize-none"
         />
-        <div className="text-xs text-gray-500 dark:text-slate-400">
-          {problem.length} / {maxLen} characters
-          {plan !== "premium" && maxLen === 4000 && " — Upgrade for up to 12,000"}
+        <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
+          <span>{problem.length} / {maxLen} characters</span>
+          {plan !== "premium" && (
+            <span>
+              <button
+                type="button"
+                className="text-blue-500 hover:underline"
+                onClick={() => {}}
+              >
+                Upgrade to Premium
+              </button>
+              {" "}for up to 12,000
+            </span>
+          )}
         </div>
 
-        {/* Style and detail selection controls */}
         <div className="flex flex-col sm:flex-row gap-3">
-          
-          {/* Style selector with hover tooltip */}
           <div
             className="relative flex-1"
             onMouseEnter={() => setShowTooltip(true)}
@@ -93,7 +98,7 @@ export default function InputForm({ onResult, plan = "free" }) {
             <select
               value={style}
               onChange={(e) => setStyle(e.target.value)}
-              className="w-full p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+              className="w-full p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             >
               <option>Academic</option>
               <option>Developer-Friendly</option>
@@ -101,32 +106,29 @@ export default function InputForm({ onResult, plan = "free" }) {
               <option>Step-by-Step</option>
             </select>
 
-            {/* Tooltip showing current style description */}
             {showTooltip && (
-              <div className="absolute top-full mt-2 w-64 bg-gray-800 text-gray-100 text-xs p-2 rounded-lg shadow-lg z-20">
-                {styleDescriptions[style]}
+              <div className="absolute top-full mt-2 w-64 bg-gray-800 text-gray-100 text-xs p-3 rounded-lg shadow-lg z-20 leading-relaxed">
+                {STYLE_DESCRIPTIONS[style]}
               </div>
             )}
           </div>
 
-          {/* Detail selector */}
           <select
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
-            className="flex-1 p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+            className="flex-1 p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           >
             <option>Concise</option>
             <option>Detailed</option>
           </select>
 
-          {/* Generate button */}
           <button
             disabled={loading}
-            className={`px-4 py-2 font-semibold rounded-lg text-white transition ${
+            className={`px-5 py-2 font-semibold rounded-lg text-white transition ${
               loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            {loading ? "Generating..." : "Generate"}
+            {loading ? "Generating…" : "Generate"}
           </button>
         </div>
       </form>

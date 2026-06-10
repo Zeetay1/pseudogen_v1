@@ -1,5 +1,5 @@
-// frontend/src/App.jsx
 import React, { useState, useEffect } from "react";
+import { Sun, Moon, PanelLeft, PanelLeftClose, LogOut } from "lucide-react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
@@ -48,7 +48,7 @@ export default function App() {
   if (loading) {
     return (
       <div className={`${rootClass} min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900`}>
-        <p className="text-gray-600 dark:text-slate-300">Loading…</p>
+        <p className="text-gray-500 dark:text-slate-400">Loading…</p>
       </div>
     );
   }
@@ -85,34 +85,27 @@ export default function App() {
     );
   }
 
-  // Save a new pseudocode entry to history (max 50 entries)
   const saveToHistory = (entry) => {
-    const next = [entry, ...history].slice(0, 50);
-    setHistory(next);
+    setHistory((prev) => [entry, ...prev].slice(0, 50));
   };
 
-  // When a history item is selected, load its pseudocode into the workspace
   const handleSelectHistory = (entry) => {
     setOutput(entry.markdown);
-    const mainEl = document.getElementById("main-workspace");
-    if (mainEl) mainEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("main-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Clear all history and reset output
   const handleClearHistory = () => {
-    if (!confirm("Clear entire history?")) return;
+    if (!confirm("Clear all history?")) return;
     setHistory([]);
     setOutput("");
     localStorage.removeItem("pseudogen_history");
   };
 
-  // Delete a single history entry
   const handleDeleteHistory = (index) => {
     if (!confirm("Delete this entry?")) return;
     setHistory((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Rename a single history entry
   const handleRenameHistory = (index, newTitle) => {
     setHistory((prev) => {
       const updated = [...prev];
@@ -121,25 +114,23 @@ export default function App() {
     });
   };
 
+  const iconBtn =
+    "p-2 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 " +
+    "text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-600 transition";
 
   return (
     <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
       <div className="flex flex-col min-h-screen">
-        <header
-          className="fixed top-0 left-0 right-0 z-30 
-                    bg-white dark:bg-slate-800 dark:border-slate-700 
-                    shadow-sm py-4 px-6 flex items-center justify-between 
-                    border-b border-gray-200"
-        >
-          <div>
-            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              Pseudogen
-            </h1>
-            <div className="text-xs text-gray-500 dark:text-slate-300">v1</div>
-          </div>
+        <header className="fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm px-4 sm:px-6 h-[60px] flex items-center justify-between">
+          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">
+            Pseudogen
+          </h1>
 
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500 dark:text-slate-400 truncate max-w-[120px]" title={user?.email}>
+          <div className="flex items-center gap-2">
+            <span
+              className="hidden sm:block text-sm text-gray-500 dark:text-slate-400 truncate max-w-[180px]"
+              title={user?.email}
+            >
               {user?.email}
             </span>
             {plan === "premium" && (
@@ -150,65 +141,66 @@ export default function App() {
             <button
               type="button"
               onClick={() => setShowPricing(true)}
-              className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700"
+              className="px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-600 transition"
             >
               {plan === "premium" ? "Plans" : "Upgrade"}
             </button>
             <button
               type="button"
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-              className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 flex items-center gap-2"
-              title="Toggle light / dark"
+              className={iconBtn}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             >
-              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
+              {theme === "dark" ? <Moon size={15} /> : <Sun size={15} />}
             </button>
             <button
               type="button"
               onClick={() => setIsHistoryOpen((s) => !s)}
-              className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700"
-              title={isHistoryOpen ? "Collapse history" : "Open history"}
+              className={iconBtn}
+              aria-label={isHistoryOpen ? "Hide history panel" : "Show history panel"}
+              title={isHistoryOpen ? "Hide history panel" : "Show history panel"}
             >
-              {isHistoryOpen ? "Hide History" : "Show History"}
+              {isHistoryOpen ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
             </button>
             <button
               type="button"
               onClick={logout}
-              className="px-3 py-1 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-sm"
+              className={iconBtn}
+              aria-label="Sign out"
+              title="Sign out"
             >
-              Log out
+              <LogOut size={15} />
             </button>
           </div>
         </header>
 
-        {/* Main Content Area */}
         <main
-          className={`flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900 transition-all duration-300 pt-[72px]
+          className={`flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900 transition-all duration-300 pt-[60px]
               ${isHistoryOpen ? "pl-72" : "pl-0"}`}
         >
-          
-          {/* Sidebar: History Panel */}
           <aside
-            className={`fixed top-[72px] left-0 h-[calc(100vh-72px)] w-72 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 
+            className={`fixed top-[60px] left-0 h-[calc(100vh-60px)] w-72 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700
                         p-4 transform transition-transform duration-300 ease-in-out z-20
                         ${isHistoryOpen ? "translate-x-0" : "-translate-x-full"}`}
             aria-hidden={!isHistoryOpen}
           >
             <div className="h-full flex flex-col">
-              {/* Sidebar header with clear button */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-100">History</h2>
+                <h2 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                  History
+                </h2>
                 <button
                   onClick={handleClearHistory}
-                  className="text-sm text-red-500 hover:underline"
+                  className="text-xs text-red-500 hover:text-red-600 dark:hover:text-red-400 transition"
                 >
-                  Clear
+                  Clear all
                 </button>
               </div>
 
-              {/* Scrollable history list */}
               <div
                 className="overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent"
-                style={{ maxHeight: "calc(100vh - 160px)" }}
+                style={{ maxHeight: "calc(100vh - 140px)" }}
               >
                 <HistoryPanel
                   history={history}
@@ -220,7 +212,6 @@ export default function App() {
             </div>
           </aside>
 
-          {/* Workspace: Input + Output */}
           <section
             id="main-workspace"
             className="flex-1 p-6 overflow-auto bg-gray-100 dark:bg-slate-950 transition-colors"
@@ -238,9 +229,8 @@ export default function App() {
           </section>
         </main>
 
-        {/* Footer */}
-        <footer className="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 py-3 text-center text-sm text-gray-500 dark:text-slate-300">
-          © {new Date().getFullYear()} Pseudogen. All rights reserved.
+        <footer className="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 py-3 text-center text-xs text-gray-400 dark:text-slate-500">
+          © {new Date().getFullYear()} Pseudogen
         </footer>
       </div>
     </div>
