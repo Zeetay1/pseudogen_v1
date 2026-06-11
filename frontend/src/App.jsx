@@ -26,7 +26,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem("pseudogen_theme");
     if (stored) return stored;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   });
 
   const [showPricing, setShowPricing] = useState(false);
