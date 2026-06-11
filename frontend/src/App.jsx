@@ -24,7 +24,9 @@ export default function App() {
   });
 
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("pseudogen_theme") || "light";
+    const stored = localStorage.getItem("pseudogen_theme");
+    if (stored) return stored;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
 
   const [showPricing, setShowPricing] = useState(false);
