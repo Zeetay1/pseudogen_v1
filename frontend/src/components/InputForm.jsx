@@ -23,7 +23,7 @@ export default function InputForm({
 }) {
   const { token, logout } = useAuth();
   const [problem, setProblem] = useState("");
-  const [style, setStyle] = useState("Step-by-Step");
+  const [style, setStyle] = useState("Developer-Friendly");
   const [detail, setDetail] = useState("Concise");
   const [loading, setLoading] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
