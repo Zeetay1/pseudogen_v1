@@ -20,9 +20,11 @@ export default function InputForm({
   usageInfo,
   onUsageUpdate,
   onLimitReached,
+  initialProblem = "",
+  chatMessages = [],
 }) {
   const { token, logout } = useAuth();
-  const [problem, setProblem] = useState("");
+  const [problem, setProblem] = useState(initialProblem);
   const [style, setStyle] = useState("Developer-Friendly");
   const [detail, setDetail] = useState("Concise");
   const [loading, setLoading] = useState(false);
@@ -43,10 +45,12 @@ export default function InputForm({
       } else if (sessionId) {
         headers["X-Session-ID"] = sessionId;
       }
+      const body = { problem_description: problem, style, detail };
+      if (chatMessages.length > 0) body.context = chatMessages;
       const res = await fetch("/generate-pseudocode", {
         method: "POST",
         headers,
-        body: JSON.stringify({ problem_description: problem, style, detail }),
+        body: JSON.stringify(body),
       });
       const text = await res.text();
       const isJson = text.trim().startsWith("{");
@@ -71,7 +75,12 @@ export default function InputForm({
           is_guest: data.is_guest,
         });
       }
-      onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now() });
+      const updatedMessages = [
+        ...chatMessages,
+        { role: "user", content: problem },
+        { role: "assistant", content: data.markdown },
+      ];
+      onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now(), messages: updatedMessages });
     } catch (err) {
       setError(err.message || "Request failed. Check your connection and try again.");
     } finally {
@@ -112,6 +121,11 @@ export default function InputForm({
         <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
           <span>
             {problem.length} / {MAX_LEN} characters
+            {chatMessages.length > 0 && (
+              <span className="ml-2 text-blue-400 dark:text-blue-500">
+                · {chatMessages.length / 2 | 0} exchange{chatMessages.length > 2 ? "s" : ""} in context
+              </span>
+            )}
           </span>
           {usageInfo && (
             <span

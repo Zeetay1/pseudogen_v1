@@ -42,6 +42,9 @@ export default function App() {
   const [showAuthModal, setShowAuthModal] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [chatKey, setChatKey] = useState(0);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [activeChatTs, setActiveChatTs] = useState(null);
+  const [initialProblem, setInitialProblem] = useState("");
 
   const rootClass = theme === "dark" ? "dark" : "";
 
@@ -100,42 +103,71 @@ export default function App() {
   };
 
   const handleResult = async (entry) => {
-    saveToHistory(entry);
-    setOutput(entry.markdown);
+    const isFollowUp = activeChatTs !== null;
+    const existingIdx = isFollowUp ? history.findIndex((h) => h.ts === activeChatTs) : -1;
 
-    try {
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      else if (sessionId) headers["X-Session-ID"] = sessionId;
-      const res = await fetch("/summarize", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ text: entry.problem }),
+    if (isFollowUp && existingIdx !== -1) {
+      setHistory((prev) => {
+        const idx = prev.findIndex((h) => h.ts === activeChatTs);
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          markdown: entry.markdown,
+          messages: entry.messages,
+          style: entry.style,
+          detail: entry.detail,
+        };
+        return updated;
       });
-      if (res.ok) {
-        const { title } = await res.json();
-        if (title?.trim()) {
-          setHistory((prev) => {
-            const idx = prev.findIndex((h) => h.ts === entry.ts);
-            if (idx === -1) return prev;
-            const updated = [...prev];
-            updated[idx] = { ...updated[idx], title: title.trim() };
-            return updated;
-          });
+    } else {
+      saveToHistory(entry);
+      setActiveChatTs(entry.ts);
+      // Only summarize on first generation of a new chat
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        else if (sessionId) headers["X-Session-ID"] = sessionId;
+        const res = await fetch("/summarize", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ text: entry.problem }),
+        });
+        if (res.ok) {
+          const { title } = await res.json();
+          if (title?.trim()) {
+            setHistory((prev) => {
+              const idx = prev.findIndex((h) => h.ts === entry.ts);
+              if (idx === -1) return prev;
+              const updated = [...prev];
+              updated[idx] = { ...updated[idx], title: title.trim() };
+              return updated;
+            });
+          }
         }
+      } catch {
+        // fall back to truncation
       }
-    } catch {
-      // fall back to truncation already shown
     }
+
+    setOutput(entry.markdown);
+    setChatMessages(entry.messages || []);
   };
 
   const startNewChat = () => {
     setOutput("");
+    setInitialProblem("");
+    setChatMessages([]);
+    setActiveChatTs(null);
     setChatKey((k) => k + 1);
   };
 
   const handleSelectHistory = (entry) => {
     setOutput(entry.markdown);
+    setInitialProblem(entry.problem || "");
+    setChatMessages(entry.messages || []);
+    setActiveChatTs(entry.ts);
+    setChatKey((k) => k + 1);
     document.getElementById("main-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -365,6 +397,8 @@ export default function App() {
                   onUsageUpdate={setUsageInfo}
                   onLimitReached={refreshUsage}
                   onResult={handleResult}
+                  initialProblem={initialProblem}
+                  chatMessages={chatMessages}
                 />
                 <OutputPanel markdown={output} />
               </div>

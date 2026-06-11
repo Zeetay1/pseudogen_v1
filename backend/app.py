@@ -13,7 +13,7 @@ from typing import Annotated
 import logging
 
 from ai_prompts import TEMPLATES
-from utils import call_llm
+from utils import call_llm, call_llm_messages
 from database import (
     init_db,
     GUEST_DAILY_LIMIT,
@@ -86,14 +86,43 @@ app.add_middleware(
 MAX_INPUT_LEN = 4000
 
 
+class MessageItem(BaseModel):
+    role: Annotated[str, Field(pattern="^(user|assistant|system)$")]
+    content: Annotated[str, Field(min_length=1, max_length=8000)]
+
+
 class GenerateRequest(BaseModel):
     problem_description: Annotated[str, Field(min_length=1, max_length=MAX_INPUT_LEN)]
     style: Annotated[str, Field(pattern="^(Academic|Developer-Friendly|English-Like|Step-by-Step)$")]
     detail: Annotated[str, Field(pattern="^(Concise|Detailed)$")]
+    context: list[MessageItem] | None = None
 
 
 class SummarizeRequest(BaseModel):
     text: Annotated[str, Field(min_length=1, max_length=2000)]
+
+
+_STYLE_SYSTEM = {
+    "Academic": (
+        "You generate Academic pseudocode using uppercase keywords "
+        "(BEGIN, END, IF, ELSE, WHILE, FOR, FUNCTION, RETURN) with formal, concise logical flow. "
+        "Output Markdown formatted pseudocode only."
+    ),
+    "Developer-Friendly": (
+        "You generate Developer-Friendly pseudocode with code-like syntax "
+        "(Function, If, Else, While, For, Return), clear indentation, and comments where needed. "
+        "Output Markdown formatted pseudocode only."
+    ),
+    "English-Like": (
+        "You convert problems into plain English steps with no programming syntax. "
+        "Output numbered or bulleted Markdown steps only."
+    ),
+    "Step-by-Step": (
+        "You generate beginner-friendly pseudocode using simple English keywords "
+        "(FUNCTION, IF, ELSE, WHILE, FOR, RETURN). "
+        "Output Markdown formatted pseudocode only."
+    ),
+}
 
 
 app.include_router(auth_router)
@@ -201,14 +230,28 @@ async def _generate(req: GenerateRequest, user: dict | None, x_session_id: str |
                 detail=f"Daily limit of {limit} prompts reached. Resets at midnight UTC.",
             )
 
-    template = TEMPLATES.get(req.style)
-    if template is None:
-        raise HTTPException(status_code=400, detail="Unknown style")
-
-    prompt = template.format(user_input=req.problem_description, detail=req.detail)
-
     try:
-        response_text = call_llm(prompt)
+        if req.context:
+            system_msg = (
+                f"{_STYLE_SYSTEM.get(req.style, 'You generate pseudocode.')} "
+                f"Detail level: {req.detail}. "
+                "When asked to modify or improve, update the pseudocode accordingly."
+            )
+            context = req.context[-10:]
+            messages = [
+                {"role": "system", "content": system_msg},
+                *[{"role": m.role, "content": m.content} for m in context],
+                {"role": "user", "content": req.problem_description},
+            ]
+            response_text = call_llm_messages(messages)
+        else:
+            template = TEMPLATES.get(req.style)
+            if template is None:
+                raise HTTPException(status_code=400, detail="Unknown style")
+            prompt = template.format(user_input=req.problem_description, detail=req.detail)
+            response_text = call_llm(prompt)
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("LLM call failed")
         raise HTTPException(status_code=502, detail="Failed to generate pseudocode. Please try again.")
