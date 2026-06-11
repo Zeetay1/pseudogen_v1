@@ -65,6 +65,7 @@ def call_groq_with_retries(prompt: str, model: str = None, max_retries: int = 3,
     if not api_key:
         raise RuntimeError("Missing GROQ_API_KEY")
     model = model or os.getenv("GROQ_MODEL", "llama3-8b-8192")
+    ssl_verify = os.getenv("GROQ_SSL_VERIFY", "true").lower() != "false"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -83,6 +84,7 @@ def call_groq_with_retries(prompt: str, model: str = None, max_retries: int = 3,
                 headers=headers,
                 json=payload,
                 timeout=30,
+                verify=ssl_verify,
             )
             if resp.status_code == 200:
                 data = resp.json()

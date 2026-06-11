@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-export default function OutputPanel({ markdown, plan = "free" }) {
+export default function OutputPanel({ markdown }) {
   const [copied, setCopied] = useState(false);
 
   if (!markdown) return null;
@@ -67,11 +67,9 @@ export default function OutputPanel({ markdown, plan = "free" }) {
           <button type="button" onClick={handleExportMd} className={actionBtn}>
             .md
           </button>
-          {plan === "premium" && (
-            <button type="button" onClick={handleExportPdf} className={actionBtn}>
-              PDF
-            </button>
-          )}
+          <button type="button" onClick={handleExportPdf} className={actionBtn}>
+            PDF
+          </button>
         </div>
       </div>
 

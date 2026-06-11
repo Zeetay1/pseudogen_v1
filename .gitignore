@@ -5,3 +5,4 @@ __pycache__/
 *.__pycache__
 *.pyo
 node_modules/
+BRIEF.md

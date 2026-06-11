@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request, APIRouter
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -14,8 +14,14 @@ import logging
 
 from ai_prompts import TEMPLATES
 from utils import call_llm
-from database import init_db
-from auth import get_current_user
+from database import (
+    init_db,
+    GUEST_DAILY_LIMIT,
+    USER_DAILY_LIMIT,
+    get_usage_today,
+    increment_usage_today,
+)
+from auth import get_optional_user
 from routers.auth import router as auth_router
 
 _BACKEND_DIR = Path(__file__).resolve().parent
@@ -64,7 +70,11 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _cors_origins = os.getenv("CORS_ORIGINS", "*").strip()
-allow_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] if _cors_origins != "*" else ["*"]
+allow_origins = (
+    [o.strip() for o in _cors_origins.split(",") if o.strip()]
+    if _cors_origins != "*"
+    else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
@@ -73,12 +83,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FREE_MAX_INPUT_LEN = 4000
-PREMIUM_MAX_INPUT_LEN = 12000
+MAX_INPUT_LEN = 4000
 
 
 class GenerateRequest(BaseModel):
-    problem_description: Annotated[str, Field(min_length=1, max_length=PREMIUM_MAX_INPUT_LEN)]
+    problem_description: Annotated[str, Field(min_length=1, max_length=MAX_INPUT_LEN)]
     style: Annotated[str, Field(pattern="^(Academic|Developer-Friendly|English-Like|Step-by-Step)$")]
     detail: Annotated[str, Field(pattern="^(Concise|Detailed)$")]
 
@@ -93,10 +102,40 @@ async def root():
     return {"service": "Pseudogen API", "version": "1"}
 
 
+@app.get("/usage")
+async def usage(
+    user: dict | None = Depends(get_optional_user),
+    x_session_id: str | None = Header(default=None),
+):
+    if user:
+        identifier = f"user:{user['id']}"
+        limit = USER_DAILY_LIMIT
+        is_guest = False
+    elif x_session_id:
+        identifier = f"session:{x_session_id}"
+        limit = GUEST_DAILY_LIMIT
+        is_guest = True
+    else:
+        return {"used": 0, "limit": GUEST_DAILY_LIMIT, "remaining": GUEST_DAILY_LIMIT, "is_guest": True}
+
+    used = get_usage_today(identifier)
+    return {
+        "used": used,
+        "limit": limit,
+        "remaining": max(0, limit - used),
+        "is_guest": is_guest,
+    }
+
+
 @v1_router.post("/generate-pseudocode")
 @limiter.limit("30/minute")
-async def generate_v1(request: Request, req: GenerateRequest, user: dict = Depends(get_current_user)):
-    return await _generate(request, req, user)
+async def generate_v1(
+    request: Request,
+    req: GenerateRequest,
+    user: dict | None = Depends(get_optional_user),
+    x_session_id: str | None = Header(default=None),
+):
+    return await _generate(req, user, x_session_id)
 
 
 app.include_router(v1_router)
@@ -104,17 +143,42 @@ app.include_router(v1_router)
 
 @app.post("/generate-pseudocode")
 @limiter.limit("30/minute")
-async def generate(request: Request, req: GenerateRequest, user: dict = Depends(get_current_user)):
-    return await _generate(request, req, user)
+async def generate(
+    request: Request,
+    req: GenerateRequest,
+    user: dict | None = Depends(get_optional_user),
+    x_session_id: str | None = Header(default=None),
+):
+    return await _generate(req, user, x_session_id)
 
 
-async def _generate(request: Request, req: GenerateRequest, user: dict):
-    plan = (user.get("plan") or "free").strip().lower()
-    if plan != "premium" and len(req.problem_description) > FREE_MAX_INPUT_LEN:
+async def _generate(req: GenerateRequest, user: dict | None, x_session_id: str | None):
+    if user:
+        identifier = f"user:{user['id']}"
+        limit = USER_DAILY_LIMIT
+        is_guest = False
+    elif x_session_id:
+        identifier = f"session:{x_session_id}"
+        limit = GUEST_DAILY_LIMIT
+        is_guest = True
+    else:
         raise HTTPException(
             status_code=400,
-            detail=f"Input exceeds the Free plan limit of {FREE_MAX_INPUT_LEN} characters. Upgrade to Premium for up to {PREMIUM_MAX_INPUT_LEN}.",
+            detail="A session ID or account is required.",
         )
+
+    used = get_usage_today(identifier)
+    if used >= limit:
+        if is_guest:
+            raise HTTPException(
+                status_code=429,
+                detail=f"You've used all {limit} free prompts for today. Create a free account to get {USER_DAILY_LIMIT} per day.",
+            )
+        else:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily limit of {limit} prompts reached. Resets at midnight UTC.",
+            )
 
     template = TEMPLATES.get(req.style)
     if template is None:
@@ -128,4 +192,13 @@ async def _generate(request: Request, req: GenerateRequest, user: dict):
         logger.exception("LLM call failed")
         raise HTTPException(status_code=502, detail="Failed to generate pseudocode. Please try again.")
 
-    return {"markdown": response_text}
+    new_count = increment_usage_today(identifier)
+    remaining = max(0, limit - new_count)
+
+    return {
+        "markdown": response_text,
+        "used": new_count,
+        "limit": limit,
+        "remaining": remaining,
+        "is_guest": is_guest,
+    }

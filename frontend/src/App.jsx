@@ -1,15 +1,24 @@
-import React, { useState, useEffect } from "react";
-import { Sun, Moon, PanelLeft, PanelLeftClose, LogOut } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Sun, Moon, PanelLeft, PanelLeftClose, LogOut, X } from "lucide-react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
-import PricingPage from "./components/PricingPage";
 import LoginPage from "./components/LoginPage";
 import RegisterPage from "./components/RegisterPage";
 import { useAuth } from "./context/AuthContext";
 
+function getOrCreateSessionId() {
+  let id = localStorage.getItem("pseudogen_session_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("pseudogen_session_id", id);
+  }
+  return id;
+}
+
 export default function App() {
   const { token, user, loading, login, register, logout } = useAuth();
+
   const [history, setHistory] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("pseudogen_history") || "[]");
@@ -22,17 +31,17 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(() => {
     return localStorage.getItem("pseudogen_history_open") !== "false";
   });
-
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem("pseudogen_theme");
     if (stored) return stored;
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   });
 
-  const [showPricing, setShowPricing] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
+  const [sessionId] = useState(getOrCreateSessionId);
+  const [usageInfo, setUsageInfo] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(null);
+  const [confirmClear, setConfirmClear] = useState(false);
 
-  const plan = user?.plan || "free";
   const rootClass = theme === "dark" ? "dark" : "";
 
   useEffect(() => {
@@ -47,44 +56,42 @@ export default function App() {
     localStorage.setItem("pseudogen_theme", theme);
   }, [theme]);
 
-  if (loading) {
-    return (
-      <div className={`${rootClass} min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900`}>
-        <p className="text-gray-500 dark:text-slate-400">Loading…</p>
-      </div>
-    );
+  const refreshUsage = useCallback(async () => {
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    } else if (sessionId) {
+      headers["X-Session-ID"] = sessionId;
+    }
+    try {
+      const res = await fetch("/usage", { headers });
+      if (res.ok) setUsageInfo(await res.json());
+    } catch {
+      // non-critical
+    }
+  }, [token, sessionId]);
+
+  useEffect(() => {
+    if (!loading) refreshUsage();
+  }, [loading, refreshUsage]);
+
+  useEffect(() => {
+    if (!showAuthModal) return;
+    const handler = (e) => {
+      if (e.key === "Escape") setShowAuthModal(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [showAuthModal]);
+
+  async function handleLoginSuccess(email, password) {
+    await login(email, password);
+    setShowAuthModal(null);
   }
 
-  if (!token) {
-    return (
-      <div className={rootClass}>
-        {showRegister ? (
-          <RegisterPage
-            theme={theme}
-            onRegister={register}
-            onSwitchToLogin={() => setShowRegister(false)}
-          />
-        ) : (
-          <LoginPage
-            theme={theme}
-            onLogin={login}
-            onSwitchToRegister={() => setShowRegister(true)}
-          />
-        )}
-      </div>
-    );
-  }
-
-  if (showPricing) {
-    return (
-      <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
-        <PricingPage
-          theme={theme}
-          onSelectPlan={() => setShowPricing(false)}
-          onBack={() => setShowPricing(false)}
-        />
-      </div>
-    );
+  async function handleRegisterSuccess(email, password) {
+    await register(email, password);
+    setShowAuthModal(null);
   }
 
   const saveToHistory = (entry) => {
@@ -97,14 +104,13 @@ export default function App() {
   };
 
   const handleClearHistory = () => {
-    if (!confirm("Clear all history?")) return;
     setHistory([]);
     setOutput("");
     localStorage.removeItem("pseudogen_history");
+    setConfirmClear(false);
   };
 
   const handleDeleteHistory = (index) => {
-    if (!confirm("Delete this entry?")) return;
     setHistory((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -120,8 +126,54 @@ export default function App() {
     "p-2 rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 " +
     "text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-600 transition";
 
+  const limitReached = usageInfo && usageInfo.remaining <= 0;
+  const guestLimitReached = limitReached && usageInfo.is_guest;
+  const authLimitReached = limitReached && !usageInfo.is_guest;
+
+  if (loading) {
+    return (
+      <div
+        className={`${rootClass} min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900`}
+      >
+        <p className="text-gray-500 dark:text-slate-400">Loading…</p>
+      </div>
+    );
+  }
+
   return (
     <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
+      {/* Auth modal overlay */}
+      {showAuthModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setShowAuthModal(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-md">
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(null)}
+              className="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+            {showAuthModal === "login" ? (
+              <LoginPage
+                noWrapper
+                onLogin={handleLoginSuccess}
+                onSwitchToRegister={() => setShowAuthModal("register")}
+              />
+            ) : (
+              <RegisterPage
+                noWrapper
+                onRegister={handleRegisterSuccess}
+                onSwitchToLogin={() => setShowAuthModal("login")}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col min-h-screen">
         <header className="fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm px-4 sm:px-6 h-[60px] flex items-center justify-between">
           <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">
@@ -129,24 +181,23 @@ export default function App() {
           </h1>
 
           <div className="flex items-center gap-2">
-            <span
-              className="hidden sm:block text-sm text-gray-500 dark:text-slate-400 truncate max-w-[180px]"
-              title={user?.email}
-            >
-              {user?.email}
-            </span>
-            {plan === "premium" && (
-              <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
-                Premium
+            {user && (
+              <span
+                className="hidden sm:block text-sm text-gray-500 dark:text-slate-400 truncate max-w-[180px]"
+                title={user.email}
+              >
+                {user.email}
               </span>
             )}
-            <button
-              type="button"
-              onClick={() => setShowPricing(true)}
-              className="px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-600 transition"
-            >
-              {plan === "premium" ? "Plans" : "Upgrade"}
-            </button>
+            {!user && (
+              <button
+                type="button"
+                onClick={() => setShowAuthModal("login")}
+                className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium"
+              >
+                Sign in
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
@@ -165,15 +216,17 @@ export default function App() {
             >
               {isHistoryOpen ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
             </button>
-            <button
-              type="button"
-              onClick={logout}
-              className={iconBtn}
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <LogOut size={15} />
-            </button>
+            {user && (
+              <button
+                type="button"
+                onClick={logout}
+                className={iconBtn}
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogOut size={15} />
+              </button>
+            )}
           </div>
         </header>
 
@@ -192,12 +245,30 @@ export default function App() {
                 <h2 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   History
                 </h2>
-                <button
-                  onClick={handleClearHistory}
-                  className="text-xs text-red-500 hover:text-red-600 dark:hover:text-red-400 transition"
-                >
-                  Clear all
-                </button>
+                {confirmClear ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-600 dark:text-slate-400">Clear all?</span>
+                    <button
+                      onClick={handleClearHistory}
+                      className="text-xs px-1.5 py-0.5 rounded bg-red-600 text-white hover:bg-red-700"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmClear(false)}
+                      className="text-xs text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmClear(true)}
+                    className="text-xs text-red-500 hover:text-red-600 dark:hover:text-red-400 transition"
+                  >
+                    Clear all
+                  </button>
+                )}
               </div>
 
               <div
@@ -218,15 +289,40 @@ export default function App() {
             id="main-workspace"
             className="flex-1 p-6 overflow-auto bg-gray-100 dark:bg-slate-950 transition-colors"
           >
-            <div className="max-w-4xl mx-auto bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
-              <InputForm
-                plan={plan}
-                onResult={(entry) => {
-                  saveToHistory(entry);
-                  setOutput(entry.markdown);
-                }}
-              />
-              <OutputPanel markdown={output} plan={plan} />
+            <div className="max-w-4xl mx-auto space-y-4">
+              {guestLimitReached && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+                  <span>
+                    You&apos;ve used all {usageInfo.limit} free prompts today.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAuthModal("register")}
+                    className="shrink-0 px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition"
+                  >
+                    Sign up free — get 10/day
+                  </button>
+                </div>
+              )}
+              {authLimitReached && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200">
+                  Daily limit of {usageInfo.limit} prompts reached. Resets at midnight UTC.
+                </div>
+              )}
+
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
+                <InputForm
+                  sessionId={sessionId}
+                  usageInfo={usageInfo}
+                  onUsageUpdate={setUsageInfo}
+                  onLimitReached={refreshUsage}
+                  onResult={(entry) => {
+                    saveToHistory(entry);
+                    setOutput(entry.markdown);
+                  }}
+                />
+                <OutputPanel markdown={output} />
+              </div>
             </div>
           </section>
         </main>

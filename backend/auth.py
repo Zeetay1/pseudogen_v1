@@ -49,7 +49,6 @@ def decode_token(token: str) -> dict | None:
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> dict:
-    """Dependency: require valid Bearer token and return user dict (id, email, plan)."""
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,3 +69,17 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict | None:
+    if credentials is None:
+        return None
+    payload = decode_token(credentials.credentials)
+    if payload is None:
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    return get_user_by_id(int(user_id))

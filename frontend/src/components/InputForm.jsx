@@ -2,15 +2,26 @@ import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 const STYLE_DESCRIPTIONS = {
-  "Academic": "Formal pseudocode with uppercase keywords (BEGIN, END, IF, WHILE) and concise logical flow.",
-  "Developer-Friendly": "Code-style pseudocode close to real syntax — functions, loops, and conditionals.",
-  "English-Like": "Plain English steps with no programming syntax. Great for non-technical audiences.",
-  "Step-by-Step": "Beginner-friendly pseudocode in natural language, clearly ordered and easy to follow.",
+  Academic:
+    "Formal pseudocode with uppercase keywords (BEGIN, END, IF, WHILE) and concise logical flow.",
+  "Developer-Friendly":
+    "Code-style pseudocode close to real syntax — functions, loops, and conditionals.",
+  "English-Like":
+    "Plain English steps with no programming syntax. Great for non-technical audiences.",
+  "Step-by-Step":
+    "Beginner-friendly pseudocode in natural language, clearly ordered and easy to follow.",
 };
 
-export default function InputForm({ onResult, plan = "free" }) {
+const MAX_LEN = 4000;
+
+export default function InputForm({
+  onResult,
+  sessionId,
+  usageInfo,
+  onUsageUpdate,
+  onLimitReached,
+}) {
   const { token, logout } = useAuth();
-  const maxLen = plan === "premium" ? 12000 : 4000;
   const [problem, setProblem] = useState("");
   const [style, setStyle] = useState("Step-by-Step");
   const [detail, setDetail] = useState("Concise");
@@ -18,13 +29,20 @@ export default function InputForm({ onResult, plan = "free" }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [error, setError] = useState(null);
 
+  const atLimit = usageInfo && usageInfo.remaining <= 0;
+
   async function handleSubmit(e) {
     e.preventDefault();
+    if (atLimit) return;
     setLoading(true);
     setError(null);
     try {
       const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      } else if (sessionId) {
+        headers["X-Session-ID"] = sessionId;
+      }
       const res = await fetch("/generate-pseudocode", {
         method: "POST",
         headers,
@@ -34,13 +52,25 @@ export default function InputForm({ onResult, plan = "free" }) {
       const isJson = text.trim().startsWith("{");
       if (!res.ok) {
         if (res.status === 401) logout();
+        if (res.status === 429) {
+          onLimitReached?.();
+          return;
+        }
         const msg = isJson
-          ? (JSON.parse(text).detail || "Server error")
+          ? JSON.parse(text).detail || "Server error"
           : `Server error (${res.status}). The backend may be unreachable.`;
         throw new Error(msg);
       }
       const data = isJson ? JSON.parse(text) : { markdown: text };
       if (!data.markdown) throw new Error("Received an empty response from the server.");
+      if (data.used !== undefined) {
+        onUsageUpdate?.({
+          used: data.used,
+          limit: data.limit,
+          remaining: data.remaining,
+          is_guest: data.is_guest,
+        });
+      }
       onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now() });
     } catch (err) {
       setError(err.message || "Request failed. Check your connection and try again.");
@@ -69,22 +99,29 @@ export default function InputForm({ onResult, plan = "free" }) {
           required
           value={problem}
           onChange={(e) => setProblem(e.target.value)}
-          maxLength={maxLen}
-          placeholder="e.g. Find the shortest path between two nodes in a weighted graph…"
-          className="w-full h-40 p-3 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 resize-none"
+          maxLength={MAX_LEN}
+          disabled={atLimit}
+          placeholder={
+            atLimit
+              ? "Daily limit reached."
+              : "e.g. Find the shortest path between two nodes in a weighted graph…"
+          }
+          className="w-full h-40 p-3 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
         />
+
         <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
-          <span>{problem.length} / {maxLen} characters</span>
-          {plan !== "premium" && (
-            <span>
-              <button
-                type="button"
-                className="text-blue-500 hover:underline"
-                onClick={() => {}}
-              >
-                Upgrade to Premium
-              </button>
-              {" "}for up to 12,000
+          <span>
+            {problem.length} / {MAX_LEN} characters
+          </span>
+          {usageInfo && (
+            <span
+              className={
+                usageInfo.remaining <= 1
+                  ? "text-amber-500 dark:text-amber-400 font-medium"
+                  : ""
+              }
+            >
+              {usageInfo.remaining} / {usageInfo.limit} prompts left today
             </span>
           )}
         </div>
@@ -98,7 +135,8 @@ export default function InputForm({ onResult, plan = "free" }) {
             <select
               value={style}
               onChange={(e) => setStyle(e.target.value)}
-              className="w-full p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={atLimit}
+              className="w-full p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-50"
             >
               <option>Academic</option>
               <option>Developer-Friendly</option>
@@ -116,16 +154,19 @@ export default function InputForm({ onResult, plan = "free" }) {
           <select
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
-            className="flex-1 p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            disabled={atLimit}
+            className="flex-1 p-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-50"
           >
             <option>Concise</option>
             <option>Detailed</option>
           </select>
 
           <button
-            disabled={loading}
+            disabled={loading || atLimit}
             className={`px-5 py-2 font-semibold rounded-lg text-white transition ${
-              loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+              loading || atLimit
+                ? "bg-blue-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
             {loading ? "Generating…" : "Generate"}
