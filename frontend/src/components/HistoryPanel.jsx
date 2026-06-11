@@ -50,8 +50,8 @@ export default function HistoryPanel({
     <ul className="space-y-1">
       {history.map((h, i) => {
         const raw = h.problem?.trim() || h.markdown || "";
-        const title =
-          raw.length > 0 ? raw.slice(0, 50) + (raw.length > 50 ? "…" : "") : "Untitled";
+        const title = h.title?.trim() ||
+          (raw.length > 0 ? raw.slice(0, 50) + (raw.length > 50 ? "…" : "") : "Untitled");
 
         return (
           <li

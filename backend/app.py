@@ -92,6 +92,10 @@ class GenerateRequest(BaseModel):
     detail: Annotated[str, Field(pattern="^(Concise|Detailed)$")]
 
 
+class SummarizeRequest(BaseModel):
+    text: Annotated[str, Field(min_length=1, max_length=2000)]
+
+
 app.include_router(auth_router)
 
 v1_router = APIRouter(prefix="/v1", tags=["v1"])
@@ -125,6 +129,23 @@ async def usage(
         "remaining": max(0, limit - used),
         "is_guest": is_guest,
     }
+
+
+@app.post("/summarize")
+@limiter.limit("60/minute")
+async def summarize_title(request: Request, req: SummarizeRequest):
+    prompt = (
+        "Write a 4-6 word title for this programming problem. "
+        "Title case. No punctuation. No quotes. No explanation. Just the title:\n\n"
+        + req.text[:500]
+    )
+    try:
+        title = call_llm(prompt)
+        title = title.strip().split("\n")[0][:60]
+        return {"title": title}
+    except Exception:
+        logger.exception("Summarize failed")
+        raise HTTPException(status_code=502, detail="Summarization failed")
 
 
 @v1_router.post("/generate-pseudocode")

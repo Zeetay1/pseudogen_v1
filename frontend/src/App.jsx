@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Sun, Moon, PanelLeft, PanelLeftClose, LogOut, X } from "lucide-react";
+import { Sun, Moon, PanelLeft, PanelLeftClose, LogOut, X, SquarePen } from "lucide-react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
@@ -41,6 +41,7 @@ export default function App() {
   const [usageInfo, setUsageInfo] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [chatKey, setChatKey] = useState(0);
 
   const rootClass = theme === "dark" ? "dark" : "";
 
@@ -96,6 +97,41 @@ export default function App() {
 
   const saveToHistory = (entry) => {
     setHistory((prev) => [entry, ...prev].slice(0, 50));
+  };
+
+  const handleResult = async (entry) => {
+    saveToHistory(entry);
+    setOutput(entry.markdown);
+
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      else if (sessionId) headers["X-Session-ID"] = sessionId;
+      const res = await fetch("/summarize", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ text: entry.problem }),
+      });
+      if (res.ok) {
+        const { title } = await res.json();
+        if (title?.trim()) {
+          setHistory((prev) => {
+            const idx = prev.findIndex((h) => h.ts === entry.ts);
+            if (idx === -1) return prev;
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], title: title.trim() };
+            return updated;
+          });
+        }
+      }
+    } catch {
+      // fall back to truncation already shown
+    }
+  };
+
+  const startNewChat = () => {
+    setOutput("");
+    setChatKey((k) => k + 1);
   };
 
   const handleSelectHistory = (entry) => {
@@ -176,9 +212,20 @@ export default function App() {
 
       <div className="flex flex-col min-h-screen">
         <header className="fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm px-4 sm:px-6 h-[60px] flex items-center justify-between">
-          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">
-            Pseudogen
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">
+              Pseudogen
+            </h1>
+            <button
+              type="button"
+              onClick={startNewChat}
+              className={iconBtn}
+              aria-label="New chat"
+              title="New chat"
+            >
+              <SquarePen size={15} />
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
             {user && (
@@ -312,14 +359,12 @@ export default function App() {
 
               <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
                 <InputForm
+                  key={chatKey}
                   sessionId={sessionId}
                   usageInfo={usageInfo}
                   onUsageUpdate={setUsageInfo}
                   onLimitReached={refreshUsage}
-                  onResult={(entry) => {
-                    saveToHistory(entry);
-                    setOutput(entry.markdown);
-                  }}
+                  onResult={handleResult}
                 />
                 <OutputPanel markdown={output} />
               </div>

@@ -14,6 +14,7 @@ export default defineConfig({
     proxy: {
       "/generate-pseudocode": "http://localhost:8000",
       "/usage": "http://localhost:8000",
+      "/summarize": "http://localhost:8000",
       "/auth": "http://localhost:8000",
       "/v1": "http://localhost:8000"
     }
