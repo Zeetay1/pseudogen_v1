@@ -49,7 +49,7 @@ export default function InputForm({
     if (chatMessages.length > 0) body.context = chatMessages;
 
     try {
-      const res = await fetch("/generate-pseudocode", {
+      const res = await fetch("/v1/generate-pseudocode", {
         method: "POST",
         headers,
         credentials: "include",
@@ -66,61 +66,25 @@ export default function InputForm({
         throw new Error(err.detail || `Server error (${res.status})`);
       }
 
-      // SSE streaming read
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let accumulated = "";
-      let usageData = null;
-      let streamError = null;
-      let done = false;
+      const data = await res.json();
+      if (!data.markdown) throw new Error("Received an empty response from the server.");
 
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !readerDone });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const raw = line.slice(6).trim();
-          if (raw === "[DONE]") { done = true; break; }
-          try {
-            const event = JSON.parse(raw);
-            if (event.token !== undefined) {
-              accumulated += event.token;
-              onStreamChunk?.(accumulated);
-            } else if (event.usage) {
-              usageData = event.usage;
-              onUsageUpdate?.(event.usage);
-            } else if (event.error) {
-              streamError = event.error;
-              done = true;
-            }
-          } catch {
-            // ignore malformed SSE lines
-          }
-        }
+      if (data.used !== undefined) {
+        onUsageUpdate?.({ used: data.used, limit: data.limit, remaining: data.remaining, is_guest: data.is_guest });
       }
-
-      if (streamError) throw new Error(streamError);
-      if (!accumulated) throw new Error("Received an empty response from the server.");
 
       const updatedMessages = [
         ...chatMessages,
         { role: "user", content: problem },
-        { role: "assistant", content: accumulated },
+        { role: "assistant", content: data.markdown },
       ];
       onResult({
         problem,
         style,
         detail,
-        markdown: accumulated,
+        markdown: data.markdown,
         ts: Date.now(),
         messages: updatedMessages,
-        ...(usageData || {}),
       });
     } catch (err) {
       onStreamChunk?.(null);
