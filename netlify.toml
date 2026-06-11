@@ -7,12 +7,8 @@
   NODE_VERSION = "20"
 
 # ── API proxy rewrites → HF Space backend ────────────────────────────────────
-# Replace YOUR_HF_SPACE_URL with your actual Space URL, e.g.:
+# Replace YOUR_HF_SPACE_URL with your actual Space URL once created, e.g.:
 #   https://zeetay-pseudogen-backend.hf.space
-#
-# Set this as an environment variable in Netlify UI:
-#   VITE_HF_SPACE_URL = https://zeetay-pseudogen-backend.hf.space
-# (The redirects below hard-code it — update after you know your Space URL)
 
 [[redirects]]
   from   = "/health"
