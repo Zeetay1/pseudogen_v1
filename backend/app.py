@@ -168,6 +168,7 @@ async def health():
 
 @app.get("/usage")
 async def usage(
+    request: Request,
     user: dict | None = Depends(get_optional_user),
     x_session_id: str | None = Header(default=None),
 ):
@@ -175,12 +176,10 @@ async def usage(
         identifier = f"user:{user['id']}"
         limit = USER_DAILY_LIMIT
         is_guest = False
-    elif x_session_id:
-        identifier = f"session:{x_session_id}"
+    else:
+        identifier = f"ip:{_get_client_ip(request)}"
         limit = GUEST_DAILY_LIMIT
         is_guest = True
-    else:
-        return {"used": 0, "limit": GUEST_DAILY_LIMIT, "remaining": GUEST_DAILY_LIMIT, "is_guest": True}
 
     used = get_usage_today(identifier)
     return {"used": used, "limit": limit, "remaining": max(0, limit - used), "is_guest": is_guest}
@@ -203,12 +202,19 @@ async def summarize_title(request: Request, req: SummarizeRequest):
         raise HTTPException(status_code=502, detail="Summarization failed")
 
 
-def _resolve_identity(user: dict | None, x_session_id: str | None):
+def _get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _resolve_identity(request: Request, user: dict | None, x_session_id: str | None):
     if user:
         return f"user:{user['id']}", USER_DAILY_LIMIT, False
-    if x_session_id:
-        return f"session:{x_session_id}", GUEST_DAILY_LIMIT, True
-    raise HTTPException(status_code=400, detail="A session ID or account is required.")
+    # Track guests by IP — session UUID is trivially bypassed by opening incognito
+    ip = _get_client_ip(request)
+    return f"ip:{ip}", GUEST_DAILY_LIMIT, True
 
 
 def _build_messages(req: GenerateRequest) -> list | None:
@@ -237,7 +243,7 @@ async def generate(
     user: dict | None = Depends(get_optional_user),
     x_session_id: str | None = Header(default=None),
 ):
-    identifier, limit, is_guest = _resolve_identity(user, x_session_id)
+    identifier, limit, is_guest = _resolve_identity(request, user, x_session_id)
     used = get_usage_today(identifier)
     if used >= limit:
         raise HTTPException(
@@ -288,7 +294,7 @@ async def generate_v1(
     user: dict | None = Depends(get_optional_user),
     x_session_id: str | None = Header(default=None),
 ):
-    identifier, limit, is_guest = _resolve_identity(user, x_session_id)
+    identifier, limit, is_guest = _resolve_identity(request, user, x_session_id)
 
     cache_key = make_cache_key(req.problem_description, req.style, req.detail)
     cached = get_cached_response(cache_key)
