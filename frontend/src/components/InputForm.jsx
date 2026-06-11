@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useAuth } from "../context/AuthContext";
 
 const STYLE_DESCRIPTIONS = {
   Academic:
@@ -24,7 +23,6 @@ export default function InputForm({
   initialProblem = "",
   chatMessages = [],
 }) {
-  const { token, logout } = useAuth();
   const [problem, setProblem] = useState(initialProblem);
   const [style, setStyle] = useState("Developer-Friendly");
   const [detail, setDetail] = useState("Concise");
@@ -42,8 +40,7 @@ export default function InputForm({
     onStreamChunk?.("");
 
     const headers = { "Content-Type": "application/json" };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    if (!token && sessionId) headers["X-Session-ID"] = sessionId;
+    if (sessionId) headers["X-Session-ID"] = sessionId;
 
     const body = { problem_description: problem, style, detail };
     if (chatMessages.length > 0) body.context = chatMessages;
@@ -57,7 +54,6 @@ export default function InputForm({
       });
 
       if (!res.ok) {
-        if (res.status === 401) logout();
         if (res.status === 429) {
           onLimitReached?.();
           return;

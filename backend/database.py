@@ -10,7 +10,7 @@ DB_PATH = _BACKEND_DIR / "pseudogen.db"
 _USE_PG = bool(os.getenv("DATABASE_URL"))
 P = "%s" if _USE_PG else "?"
 
-GUEST_DAILY_LIMIT = 5
+GUEST_DAILY_LIMIT = 10
 USER_DAILY_LIMIT = 10
 
 

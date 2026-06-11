@@ -1,12 +1,8 @@
-import React, { lazy, Suspense, useState, useEffect, useCallback } from "react";
-import { Sun, Moon, PanelLeft, PanelLeftClose, LogOut, X, SquarePen } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Sun, Moon, PanelLeft, PanelLeftClose, SquarePen } from "lucide-react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
-import { useAuth } from "./context/AuthContext";
-
-const LoginPage = lazy(() => import("./components/LoginPage"));
-const RegisterPage = lazy(() => import("./components/RegisterPage"));
 
 function getOrCreateSessionId() {
   let id = localStorage.getItem("pseudogen_session_id");
@@ -18,8 +14,6 @@ function getOrCreateSessionId() {
 }
 
 export default function App() {
-  const { token, user, loading, login, register, logout } = useAuth();
-
   const [history, setHistory] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("pseudogen_history") || "[]");
@@ -40,7 +34,6 @@ export default function App() {
 
   const [sessionId] = useState(getOrCreateSessionId);
   const [usageInfo, setUsageInfo] = useState(null);
-  const [showAuthModal, setShowAuthModal] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [chatKey, setChatKey] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
@@ -62,39 +55,20 @@ export default function App() {
   }, [theme]);
 
   const refreshUsage = useCallback(async () => {
-    const headers = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    else if (sessionId) headers["X-Session-ID"] = sessionId;
     try {
-      const res = await fetch("/usage", { headers, credentials: "include" });
+      const res = await fetch("/usage", {
+        headers: { "X-Session-ID": sessionId },
+        credentials: "include",
+      });
       if (res.ok) setUsageInfo(await res.json());
     } catch {
       // non-critical
     }
-  }, [token, sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
-    if (!loading) refreshUsage();
-  }, [loading, refreshUsage]);
-
-  useEffect(() => {
-    if (!showAuthModal) return;
-    const handler = (e) => {
-      if (e.key === "Escape") setShowAuthModal(null);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [showAuthModal]);
-
-  async function handleLoginSuccess(email, password) {
-    await login(email, password);
-    setShowAuthModal(null);
-  }
-
-  async function handleRegisterSuccess(email, password) {
-    await register(email, password);
-    setShowAuthModal(null);
-  }
+    refreshUsage();
+  }, [refreshUsage]);
 
   const handleResult = async (entry) => {
     const isFollowUp = activeChatTs !== null;
@@ -115,17 +89,12 @@ export default function App() {
         return updated;
       });
     } else {
-      const newEntry = { ...entry };
-      setHistory((prev) => [newEntry, ...prev].slice(0, 50));
+      setHistory((prev) => [entry, ...prev].slice(0, 50));
       setActiveChatTs(entry.ts);
-      // Summarize title for new chat
       try {
-        const headers = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        else if (sessionId) headers["X-Session-ID"] = sessionId;
         const res = await fetch("/summarize", {
           method: "POST",
-          headers,
+          headers: { "Content-Type": "application/json", "X-Session-ID": sessionId },
           credentials: "include",
           body: JSON.stringify({ text: entry.problem }),
         });
@@ -142,7 +111,7 @@ export default function App() {
           }
         }
       } catch {
-        // fall back to truncation in HistoryPanel
+        // fall back to truncation
       }
     }
 
@@ -195,55 +164,9 @@ export default function App() {
     "text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-600 transition";
 
   const limitReached = usageInfo && usageInfo.remaining <= 0;
-  const guestLimitReached = limitReached && usageInfo.is_guest;
-  const authLimitReached = limitReached && !usageInfo.is_guest;
-
-  if (loading) {
-    return (
-      <div
-        className={`${rootClass} min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900`}
-      >
-        <p className="text-gray-500 dark:text-slate-400">Loading…</p>
-      </div>
-    );
-  }
 
   return (
     <div className={`${rootClass} min-h-screen bg-gray-100 dark:bg-slate-900 dark:text-gray-100`}>
-      {/* Auth modal overlay */}
-      {showAuthModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setShowAuthModal(null)}
-        >
-          <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-md">
-            <button
-              type="button"
-              onClick={() => setShowAuthModal(null)}
-              className="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
-            <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading…</div>}>
-              {showAuthModal === "login" ? (
-                <LoginPage
-                  noWrapper
-                  onLogin={handleLoginSuccess}
-                  onSwitchToRegister={() => setShowAuthModal("register")}
-                />
-              ) : (
-                <RegisterPage
-                  noWrapper
-                  onRegister={handleRegisterSuccess}
-                  onSwitchToLogin={() => setShowAuthModal("login")}
-                />
-              )}
-            </Suspense>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col min-h-screen">
         <header className="fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm px-4 sm:px-6 h-[60px] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -262,23 +185,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {user && (
-              <span
-                className="hidden sm:block text-sm text-gray-500 dark:text-slate-400 truncate max-w-[180px]"
-                title={user.email}
-              >
-                {user.email}
-              </span>
-            )}
-            {!user && (
-              <button
-                type="button"
-                onClick={() => setShowAuthModal("login")}
-                className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium"
-              >
-                Sign in
-              </button>
-            )}
             <button
               type="button"
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
@@ -297,17 +203,6 @@ export default function App() {
             >
               {isHistoryOpen ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
             </button>
-            {user && (
-              <button
-                type="button"
-                onClick={logout}
-                className={iconBtn}
-                aria-label="Sign out"
-                title="Sign out"
-              >
-                <LogOut size={15} />
-              </button>
-            )}
           </div>
         </header>
 
@@ -371,21 +266,7 @@ export default function App() {
             className="flex-1 p-6 overflow-auto bg-gray-100 dark:bg-slate-950 transition-colors"
           >
             <div className="max-w-4xl mx-auto space-y-4">
-              {guestLimitReached && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap">
-                  <span>
-                    You&apos;ve used all {usageInfo.limit} free prompts today.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowAuthModal("register")}
-                    className="shrink-0 px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition"
-                  >
-                    Sign up free — get 10/day
-                  </button>
-                </div>
-              )}
-              {authLimitReached && (
+              {limitReached && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200">
                   Daily limit of {usageInfo.limit} prompts reached. Resets at midnight UTC.
                 </div>
