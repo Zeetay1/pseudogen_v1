@@ -3,8 +3,7 @@ title: Pseudogen Backend
 emoji: 📝
 colorFrom: blue
 colorTo: indigo
-sdk: gradio
-app_file: app.py
-app_port: 7860
+sdk: docker
+app_port: 8000
 pinned: false
 ---
