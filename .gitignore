@@ -6,3 +6,6 @@ __pycache__/
 *.pyo
 node_modules/
 BRIEF.md
+INFRA_SUGGESTIONS.md
+*.db
+dist/

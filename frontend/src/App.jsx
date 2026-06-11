@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { Sun, Moon, PanelLeft, PanelLeftClose, LogOut, X, SquarePen } from "lucide-react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
-import LoginPage from "./components/LoginPage";
-import RegisterPage from "./components/RegisterPage";
 import { useAuth } from "./context/AuthContext";
+
+const LoginPage = lazy(() => import("./components/LoginPage"));
+const RegisterPage = lazy(() => import("./components/RegisterPage"));
 
 function getOrCreateSessionId() {
   let id = localStorage.getItem("pseudogen_session_id");
@@ -62,13 +63,10 @@ export default function App() {
 
   const refreshUsage = useCallback(async () => {
     const headers = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    } else if (sessionId) {
-      headers["X-Session-ID"] = sessionId;
-    }
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    else if (sessionId) headers["X-Session-ID"] = sessionId;
     try {
-      const res = await fetch("/usage", { headers });
+      const res = await fetch("/usage", { headers, credentials: "include" });
       if (res.ok) setUsageInfo(await res.json());
     } catch {
       // non-critical
@@ -98,10 +96,6 @@ export default function App() {
     setShowAuthModal(null);
   }
 
-  const saveToHistory = (entry) => {
-    setHistory((prev) => [entry, ...prev].slice(0, 50));
-  };
-
   const handleResult = async (entry) => {
     const isFollowUp = activeChatTs !== null;
     const existingIdx = isFollowUp ? history.findIndex((h) => h.ts === activeChatTs) : -1;
@@ -121,9 +115,10 @@ export default function App() {
         return updated;
       });
     } else {
-      saveToHistory(entry);
+      const newEntry = { ...entry };
+      setHistory((prev) => [newEntry, ...prev].slice(0, 50));
       setActiveChatTs(entry.ts);
-      // Only summarize on first generation of a new chat
+      // Summarize title for new chat
       try {
         const headers = { "Content-Type": "application/json" };
         if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -131,6 +126,7 @@ export default function App() {
         const res = await fetch("/summarize", {
           method: "POST",
           headers,
+          credentials: "include",
           body: JSON.stringify({ text: entry.problem }),
         });
         if (res.ok) {
@@ -146,13 +142,17 @@ export default function App() {
           }
         }
       } catch {
-        // fall back to truncation
+        // fall back to truncation in HistoryPanel
       }
     }
 
     setOutput(entry.markdown);
     setChatMessages(entry.messages || []);
   };
+
+  const handleStreamChunk = useCallback((chunk) => {
+    if (chunk !== null) setOutput(chunk);
+  }, []);
 
   const startNewChat = () => {
     setOutput("");
@@ -225,19 +225,21 @@ export default function App() {
             >
               <X size={18} />
             </button>
-            {showAuthModal === "login" ? (
-              <LoginPage
-                noWrapper
-                onLogin={handleLoginSuccess}
-                onSwitchToRegister={() => setShowAuthModal("register")}
-              />
-            ) : (
-              <RegisterPage
-                noWrapper
-                onRegister={handleRegisterSuccess}
-                onSwitchToLogin={() => setShowAuthModal("login")}
-              />
-            )}
+            <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading…</div>}>
+              {showAuthModal === "login" ? (
+                <LoginPage
+                  noWrapper
+                  onLogin={handleLoginSuccess}
+                  onSwitchToRegister={() => setShowAuthModal("register")}
+                />
+              ) : (
+                <RegisterPage
+                  noWrapper
+                  onRegister={handleRegisterSuccess}
+                  onSwitchToLogin={() => setShowAuthModal("login")}
+                />
+              )}
+            </Suspense>
           </div>
         </div>
       )}
@@ -397,6 +399,7 @@ export default function App() {
                   onUsageUpdate={setUsageInfo}
                   onLimitReached={refreshUsage}
                   onResult={handleResult}
+                  onStreamChunk={handleStreamChunk}
                   initialProblem={initialProblem}
                   chatMessages={chatMessages}
                 />

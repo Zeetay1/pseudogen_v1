@@ -1,19 +1,28 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import structlog
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from typing import Annotated
-import logging
 
 from ai_prompts import TEMPLATES
-from utils import call_llm, call_llm_messages
+from utils import (
+    call_llm,
+    call_llm_messages,
+    call_llm_stream,
+    get_cached_response,
+    set_cached_response,
+    make_cache_key,
+)
 from database import (
     init_db,
     GUEST_DAILY_LIMIT,
@@ -26,6 +35,19 @@ from routers.auth import router as auth_router
 
 _BACKEND_DIR = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=_BACKEND_DIR / ".env")
+
+# ── Sentry (optional) ─────────────────────────────────────────────────────────
+_SENTRY_DSN = os.getenv("SENTRY_DSN")
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.2")),
+        send_default_pii=False,
+    )
 
 _REQUIRED_ENV = ["PROVIDER"]
 _PROVIDER_KEYS = {
@@ -50,35 +72,41 @@ def _check_env() -> None:
 
 _check_env()
 
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger("pseudogen")
+logger = structlog.get_logger("pseudogen.app")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    logger.info("app.started")
     yield
+    logger.info("app.stopped")
 
 
-limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="Pseudogen API", lifespan=lifespan)
+# ── Rate limiter (Redis-backed when REDIS_URL is set) ─────────────────────────
+_redis_url = os.getenv("REDIS_URL")
+limiter = Limiter(
+    key_func=get_remote_address,
+    **{"storage_uri": _redis_url} if _redis_url else {},
+)
+
+app = FastAPI(title="Pseudogen API", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_cors_origins = os.getenv("CORS_ORIGINS", "*").strip()
-allow_origins = (
-    [o.strip() for o in _cors_origins.split(",") if o.strip()]
-    if _cors_origins != "*"
-    else ["*"]
-)
+# CORS: credentials require explicit origins (can't mix * with allow_credentials=True)
+_cors_origins_env = os.getenv("CORS_ORIGINS", "*").strip()
+if _cors_origins_env == "*":
+    _allow_origins = ["*"]
+    _allow_credentials = False
+else:
+    _allow_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+    _allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=True,
+    allow_origins=_allow_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -124,15 +152,18 @@ _STYLE_SYSTEM = {
     ),
 }
 
-
 app.include_router(auth_router)
-
 v1_router = APIRouter(prefix="/v1", tags=["v1"])
 
 
 @app.get("/")
 async def root():
     return {"service": "Pseudogen API", "version": "1"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/usage")
@@ -152,12 +183,7 @@ async def usage(
         return {"used": 0, "limit": GUEST_DAILY_LIMIT, "remaining": GUEST_DAILY_LIMIT, "is_guest": True}
 
     used = get_usage_today(identifier)
-    return {
-        "used": used,
-        "limit": limit,
-        "remaining": max(0, limit - used),
-        "is_guest": is_guest,
-    }
+    return {"used": used, "limit": limit, "remaining": max(0, limit - used), "is_guest": is_guest}
 
 
 @app.post("/summarize")
@@ -173,23 +199,35 @@ async def summarize_title(request: Request, req: SummarizeRequest):
         title = title.strip().split("\n")[0][:60]
         return {"title": title}
     except Exception:
-        logger.exception("Summarize failed")
+        logger.exception("summarize.failed")
         raise HTTPException(status_code=502, detail="Summarization failed")
 
 
-@v1_router.post("/generate-pseudocode")
-@limiter.limit("30/minute")
-async def generate_v1(
-    request: Request,
-    req: GenerateRequest,
-    user: dict | None = Depends(get_optional_user),
-    x_session_id: str | None = Header(default=None),
-):
-    return await _generate(req, user, x_session_id)
+def _resolve_identity(user: dict | None, x_session_id: str | None):
+    if user:
+        return f"user:{user['id']}", USER_DAILY_LIMIT, False
+    if x_session_id:
+        return f"session:{x_session_id}", GUEST_DAILY_LIMIT, True
+    raise HTTPException(status_code=400, detail="A session ID or account is required.")
 
 
-app.include_router(v1_router)
+def _build_messages(req: GenerateRequest) -> list | None:
+    if not req.context:
+        return None
+    system_msg = (
+        f"{_STYLE_SYSTEM.get(req.style, 'You generate pseudocode.')} "
+        f"Detail level: {req.detail}. "
+        "When asked to modify or improve, update the pseudocode accordingly."
+    )
+    context = req.context[-10:]
+    return [
+        {"role": "system", "content": system_msg},
+        *[{"role": m.role, "content": m.content} for m in context],
+        {"role": "user", "content": req.problem_description},
+    ]
 
+
+# ── Main endpoint — SSE streaming ─────────────────────────────────────────────
 
 @app.post("/generate-pseudocode")
 @limiter.limit("30/minute")
@@ -199,50 +237,86 @@ async def generate(
     user: dict | None = Depends(get_optional_user),
     x_session_id: str | None = Header(default=None),
 ):
-    return await _generate(req, user, x_session_id)
-
-
-async def _generate(req: GenerateRequest, user: dict | None, x_session_id: str | None):
-    if user:
-        identifier = f"user:{user['id']}"
-        limit = USER_DAILY_LIMIT
-        is_guest = False
-    elif x_session_id:
-        identifier = f"session:{x_session_id}"
-        limit = GUEST_DAILY_LIMIT
-        is_guest = True
-    else:
+    identifier, limit, is_guest = _resolve_identity(user, x_session_id)
+    used = get_usage_today(identifier)
+    if used >= limit:
         raise HTTPException(
-            status_code=400,
-            detail="A session ID or account is required.",
+            status_code=429,
+            detail=(
+                f"You've used all {limit} free prompts for today. Create a free account to get {USER_DAILY_LIMIT} per day."
+                if is_guest
+                else f"Daily limit of {limit} prompts reached. Resets at midnight UTC."
+            ),
         )
+
+    # Increment before streaming to prevent quota abuse via cancel
+    new_count = increment_usage_today(identifier)
+    remaining = max(0, limit - new_count)
+    messages = _build_messages(req)
+
+    def _sse():
+        try:
+            if messages:
+                token_stream = call_llm_stream(messages)
+            else:
+                template = TEMPLATES.get(req.style)
+                if template is None:
+                    yield f"data: {json.dumps({'error': 'Unknown style'})}\n\n"
+                    return
+                prompt = template.format(user_input=req.problem_description, detail=req.detail)
+                token_stream = call_llm_stream([{"role": "user", "content": prompt}])
+
+            for token in token_stream:
+                yield f"data: {json.dumps({'token': token})}\n\n"
+
+            yield f"data: {json.dumps({'usage': {'used': new_count, 'limit': limit, 'remaining': remaining, 'is_guest': is_guest}})}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as exc:
+            logger.error("generate.stream.error", error=str(exc))
+            yield f"data: {json.dumps({'error': 'Generation failed. Please try again.'})}\n\n"
+
+    return StreamingResponse(_sse(), media_type="text/event-stream")
+
+
+# ── v1 endpoint — non-streaming with Redis cache ──────────────────────────────
+
+@v1_router.post("/generate-pseudocode")
+@limiter.limit("30/minute")
+async def generate_v1(
+    request: Request,
+    req: GenerateRequest,
+    user: dict | None = Depends(get_optional_user),
+    x_session_id: str | None = Header(default=None),
+):
+    identifier, limit, is_guest = _resolve_identity(user, x_session_id)
+
+    cache_key = make_cache_key(req.problem_description, req.style, req.detail)
+    cached = get_cached_response(cache_key)
+    if cached:
+        used = get_usage_today(identifier)
+        return {
+            "markdown": cached,
+            "used": used,
+            "limit": limit,
+            "remaining": max(0, limit - used),
+            "is_guest": is_guest,
+            "cached": True,
+        }
 
     used = get_usage_today(identifier)
     if used >= limit:
-        if is_guest:
-            raise HTTPException(
-                status_code=429,
-                detail=f"You've used all {limit} free prompts for today. Create a free account to get {USER_DAILY_LIMIT} per day.",
-            )
-        else:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Daily limit of {limit} prompts reached. Resets at midnight UTC.",
-            )
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"You've used all {limit} free prompts for today. Create a free account to get {USER_DAILY_LIMIT} per day."
+                if is_guest
+                else f"Daily limit of {limit} prompts reached. Resets at midnight UTC."
+            ),
+        )
 
     try:
-        if req.context:
-            system_msg = (
-                f"{_STYLE_SYSTEM.get(req.style, 'You generate pseudocode.')} "
-                f"Detail level: {req.detail}. "
-                "When asked to modify or improve, update the pseudocode accordingly."
-            )
-            context = req.context[-10:]
-            messages = [
-                {"role": "system", "content": system_msg},
-                *[{"role": m.role, "content": m.content} for m in context],
-                {"role": "user", "content": req.problem_description},
-            ]
+        messages = _build_messages(req)
+        if messages:
             response_text = call_llm_messages(messages)
         else:
             template = TEMPLATES.get(req.style)
@@ -253,9 +327,10 @@ async def _generate(req: GenerateRequest, user: dict | None, x_session_id: str |
     except HTTPException:
         raise
     except Exception:
-        logger.exception("LLM call failed")
+        logger.exception("generate_v1.failed")
         raise HTTPException(status_code=502, detail="Failed to generate pseudocode. Please try again.")
 
+    set_cached_response(cache_key, response_text)
     new_count = increment_usage_today(identifier)
     remaining = max(0, limit - new_count)
 
@@ -265,4 +340,8 @@ async def _generate(req: GenerateRequest, user: dict | None, x_session_id: str |
         "limit": limit,
         "remaining": remaining,
         "is_guest": is_guest,
+        "cached": False,
     }
+
+
+app.include_router(v1_router)

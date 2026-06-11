@@ -1,7 +1,3 @@
-# backend/auth.py
-"""
-JWT and password hashing for Pseudogen. get_current_user dependency for protected routes.
-"""
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -18,7 +14,7 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-env")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)

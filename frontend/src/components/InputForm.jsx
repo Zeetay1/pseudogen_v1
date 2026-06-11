@@ -16,6 +16,7 @@ const MAX_LEN = 4000;
 
 export default function InputForm({
   onResult,
+  onStreamChunk,
   sessionId,
   usageInfo,
   onUsageUpdate,
@@ -38,50 +39,91 @@ export default function InputForm({
     if (atLimit) return;
     setLoading(true);
     setError(null);
+    onStreamChunk?.("");
+
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (!token && sessionId) headers["X-Session-ID"] = sessionId;
+
+    const body = { problem_description: problem, style, detail };
+    if (chatMessages.length > 0) body.context = chatMessages;
+
     try {
-      const headers = { "Content-Type": "application/json" };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      } else if (sessionId) {
-        headers["X-Session-ID"] = sessionId;
-      }
-      const body = { problem_description: problem, style, detail };
-      if (chatMessages.length > 0) body.context = chatMessages;
       const res = await fetch("/generate-pseudocode", {
         method: "POST",
         headers,
+        credentials: "include",
         body: JSON.stringify(body),
       });
-      const text = await res.text();
-      const isJson = text.trim().startsWith("{");
+
       if (!res.ok) {
         if (res.status === 401) logout();
         if (res.status === 429) {
           onLimitReached?.();
           return;
         }
-        const msg = isJson
-          ? JSON.parse(text).detail || "Server error"
-          : `Server error (${res.status}). The backend may be unreachable.`;
-        throw new Error(msg);
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error (${res.status})`);
       }
-      const data = isJson ? JSON.parse(text) : { markdown: text };
-      if (!data.markdown) throw new Error("Received an empty response from the server.");
-      if (data.used !== undefined) {
-        onUsageUpdate?.({
-          used: data.used,
-          limit: data.limit,
-          remaining: data.remaining,
-          is_guest: data.is_guest,
-        });
+
+      // SSE streaming read
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulated = "";
+      let usageData = null;
+      let streamError = null;
+      let done = false;
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !readerDone });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") { done = true; break; }
+          try {
+            const event = JSON.parse(raw);
+            if (event.token !== undefined) {
+              accumulated += event.token;
+              onStreamChunk?.(accumulated);
+            } else if (event.usage) {
+              usageData = event.usage;
+              onUsageUpdate?.(event.usage);
+            } else if (event.error) {
+              streamError = event.error;
+              done = true;
+            }
+          } catch {
+            // ignore malformed SSE lines
+          }
+        }
       }
+
+      if (streamError) throw new Error(streamError);
+      if (!accumulated) throw new Error("Received an empty response from the server.");
+
       const updatedMessages = [
         ...chatMessages,
         { role: "user", content: problem },
-        { role: "assistant", content: data.markdown },
+        { role: "assistant", content: accumulated },
       ];
-      onResult({ problem, style, detail, markdown: data.markdown, ts: Date.now(), messages: updatedMessages });
+      onResult({
+        problem,
+        style,
+        detail,
+        markdown: accumulated,
+        ts: Date.now(),
+        messages: updatedMessages,
+        ...(usageData || {}),
+      });
     } catch (err) {
+      onStreamChunk?.(null);
       setError(err.message || "Request failed. Check your connection and try again.");
     } finally {
       setLoading(false);
@@ -123,7 +165,7 @@ export default function InputForm({
             {problem.length} / {MAX_LEN} characters
             {chatMessages.length > 0 && (
               <span className="ml-2 text-blue-400 dark:text-blue-500">
-                · {chatMessages.length / 2 | 0} exchange{chatMessages.length > 2 ? "s" : ""} in context
+                · {Math.floor(chatMessages.length / 2)} exchange{chatMessages.length > 2 ? "s" : ""} in context
               </span>
             )}
           </span>
