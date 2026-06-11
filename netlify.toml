@@ -1,0 +1,57 @@
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# ── API proxy rewrites → HF Space backend ────────────────────────────────────
+# Replace YOUR_HF_SPACE_URL with your actual Space URL, e.g.:
+#   https://zeetay-pseudogen-backend.hf.space
+#
+# Set this as an environment variable in Netlify UI:
+#   VITE_HF_SPACE_URL = https://zeetay-pseudogen-backend.hf.space
+# (The redirects below hard-code it — update after you know your Space URL)
+
+[[redirects]]
+  from   = "/health"
+  to     = "YOUR_HF_SPACE_URL/health"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/usage"
+  to     = "YOUR_HF_SPACE_URL/usage"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/summarize"
+  to     = "YOUR_HF_SPACE_URL/summarize"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/generate-pseudocode"
+  to     = "YOUR_HF_SPACE_URL/generate-pseudocode"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/v1/*"
+  to     = "YOUR_HF_SPACE_URL/v1/:splat"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/auth/*"
+  to     = "YOUR_HF_SPACE_URL/auth/:splat"
+  status = 200
+  force  = true
+
+# SPA fallback — must be last
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
