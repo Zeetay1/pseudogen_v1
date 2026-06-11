@@ -7,42 +7,42 @@
   NODE_VERSION = "20"
 
 # ── API proxy rewrites → HF Space backend ────────────────────────────────────
-# Replace YOUR_HF_SPACE_URL with your actual Space URL once created, e.g.:
+# Replace https://zeetay-pseudogen-backend.hf.space with your actual Space URL once created, e.g.:
 #   https://zeetay-pseudogen-backend.hf.space
 
 [[redirects]]
   from   = "/health"
-  to     = "YOUR_HF_SPACE_URL/health"
+  to     = "https://zeetay-pseudogen-backend.hf.space/health"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/usage"
-  to     = "YOUR_HF_SPACE_URL/usage"
+  to     = "https://zeetay-pseudogen-backend.hf.space/usage"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/summarize"
-  to     = "YOUR_HF_SPACE_URL/summarize"
+  to     = "https://zeetay-pseudogen-backend.hf.space/summarize"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/generate-pseudocode"
-  to     = "YOUR_HF_SPACE_URL/generate-pseudocode"
+  to     = "https://zeetay-pseudogen-backend.hf.space/generate-pseudocode"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/v1/*"
-  to     = "YOUR_HF_SPACE_URL/v1/:splat"
+  to     = "https://zeetay-pseudogen-backend.hf.space/v1/:splat"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/auth/*"
-  to     = "YOUR_HF_SPACE_URL/auth/:splat"
+  to     = "https://zeetay-pseudogen-backend.hf.space/auth/:splat"
   status = 200
   force  = true
 
