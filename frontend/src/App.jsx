@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Sun, Moon, PanelLeft, PanelLeftClose, SquarePen } from "lucide-react";
+import { Sun, Moon, History, SquarePen } from "lucide-react";
 import InputForm from "./components/InputForm";
 import OutputPanel from "./components/OutputPanel";
 import HistoryPanel from "./components/HistoryPanel";
@@ -24,7 +24,7 @@ export default function App() {
 
   const [output, setOutput] = useState("");
   const [isHistoryOpen, setIsHistoryOpen] = useState(() => {
-    return localStorage.getItem("pseudogen_history_open") !== "false";
+    return localStorage.getItem("pseudogen_history_open") === "true";
   });
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem("pseudogen_theme");
@@ -201,7 +201,7 @@ export default function App() {
               aria-label={isHistoryOpen ? "Hide history panel" : "Show history panel"}
               title={isHistoryOpen ? "Hide history panel" : "Show history panel"}
             >
-              {isHistoryOpen ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
+              <History size={15} />
             </button>
           </div>
         </header>
