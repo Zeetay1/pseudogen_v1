@@ -208,7 +208,7 @@ export default function App() {
 
         <main
           className={`flex flex-1 overflow-hidden bg-gray-50 dark:bg-slate-900 transition-all duration-300 pt-[60px]
-              ${isHistoryOpen ? "pl-72" : "pl-0"}`}
+              ${isHistoryOpen ? "sm:pl-72" : "pl-0"}`}
         >
           <aside
             className={`fixed top-[60px] left-0 h-[calc(100vh-60px)] w-72 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700
@@ -260,6 +260,14 @@ export default function App() {
               </div>
             </div>
           </aside>
+
+          {isHistoryOpen && (
+            <div
+              className="fixed inset-0 bg-black/40 z-10 sm:hidden"
+              onClick={() => setIsHistoryOpen(false)}
+              aria-hidden="true"
+            />
+          )}
 
           <section
             id="main-workspace"
