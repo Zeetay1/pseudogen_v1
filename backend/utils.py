@@ -135,10 +135,10 @@ def call_groq_with_retries(prompt: str, model: str = None, max_retries: int = 3,
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("Missing GROQ_API_KEY")
-    model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     ssl_verify = os.getenv("GROQ_SSL_VERIFY", "true").lower() != "false"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 1000}
+    payload = {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 4096}
     last_err = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -178,10 +178,10 @@ def call_groq_with_messages(messages: list, model: str = None, max_retries: int 
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("Missing GROQ_API_KEY")
-    model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     ssl_verify = os.getenv("GROQ_SSL_VERIFY", "true").lower() != "false"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 1000}
+    payload = {"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 4096}
     last_err = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -264,12 +264,12 @@ def call_groq_stream(messages: list, model: str = None):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("Missing GROQ_API_KEY")
-    model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     ssl_verify = os.getenv("GROQ_SSL_VERIFY", "true").lower() != "false"
     resp = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 1000, "stream": True},
+        json={"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 4096, "stream": True},
         timeout=60,
         verify=ssl_verify,
         stream=True,

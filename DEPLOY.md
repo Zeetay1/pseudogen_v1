@@ -34,7 +34,7 @@ fly secrets set ANTHROPIC_API_KEY=your_anthropic_key
 fly secrets set GROQ_API_KEY=your_groq_key
 fly secrets set OPENAI_MODEL=gpt-4o-mini
 fly secrets set CLAUDE_MODEL=claude-3-5-haiku-20241022
-fly secrets set GROQ_MODEL=llama-3.3-70b-versatile
+fly secrets set GROQ_MODEL=openai/gpt-oss-120b
 ```
 
 Deploy backend:
